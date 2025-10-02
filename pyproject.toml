@@ -1,0 +1,19 @@
+[project]
+name = "onespirit"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "cc-sessions>=0.2.7",
+    "django>=5.2.5",
+    "django-organizations>=2.5.0",
+    "django-stubs>=5.2.2",
+    "psycopg2-binary>=2.9.10",
+    "ruff>=0.12.12",
+]
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.31.4",
+]

@@ -1,0 +1,18 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+*.sqlite3
+acli
+.serena
+
+# Virtual environments
+.venv
+
+# Environment variables
+.env
+.env.*
+!.env.example
