@@ -2,7 +2,7 @@
 
 ## Problem Statement
 
-Martial arts clubs and associations face significant administrative challenges managing memberships, payments, staff assignments, and member data across multiple locations. Current solutions are either:
+Martial arts clubs and associations face administrative challenges managing memberships, payments, staff assignments, and member data across multiple locations. Current solutions are either:
 - Generic membership systems that don't understand martial arts club hierarchies (dojos, instructors, affiliations)
 - Single-tenant applications that require separate deployments for each organization
 - Spreadsheet-based systems prone to data inconsistency and security issues
@@ -14,7 +14,7 @@ Martial arts clubs and associations face significant administrative challenges m
 ### Primary Users
 1. **Martial Arts Association Administrators**
    - Manage multiple affiliated clubs/dojos
-   - Oversee membership subscriptions and quotas
+   - Oversee membership subscriptions
    - Track cross-club affiliations and relationships
    - Monitor payment history across the organization
 
@@ -62,7 +62,7 @@ Martial arts clubs and associations face significant administrative challenges m
 - Middleware-based access control and tenant isolation
 
 ✅ **Core Data Models**
-- TenantAccount: Top-level customer with quotas and subscription metadata
+- TenantAccount: Top-level customer with subscription metadata
 - Contact: Personal information with tenant and organization awareness
 - LoginUser: Authentication with tenant access permissions
 - MemberAccount: Membership lifecycle and status tracking
