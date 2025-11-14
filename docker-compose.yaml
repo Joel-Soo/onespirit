@@ -4,6 +4,8 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: onespirit_postgres
+    env_file:
+      - .env
     environment:
       POSTGRES_DB: ${DB_NAME:-onespirit_db}
       POSTGRES_USER: ${DB_USER:-onespirit_user}
@@ -26,15 +28,12 @@ services:
       dockerfile: Dockerfile
     container_name: onespirit_web
     command: python manage.py runserver 0.0.0.0:8000
+    env_file:
+      - .env
     environment:
       - DJANGO_SETTINGS_MODULE=onespirit_project.settings.dev
-      - DB_ENGINE=django.db.backends.postgresql
-      - DB_NAME=${DB_NAME:-onespirit_db}
-      - DB_USER=${DB_USER:-onespirit_user}
-      - DB_PASSWORD=${DB_PASSWORD:-onespirit_password}
-      - DB_HOST=postgres
+      - DB_HOST=postgres  # Override for Docker network
       - DB_PORT=5432
-      - SECRET_KEY=${SECRET_KEY:-django-insecure-fallback-key-for-local-dev-only}
     volumes:
       - .:/app
     ports:
@@ -48,6 +47,8 @@ services:
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: onespirit_pgadmin
+    env_file:
+      - .env
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@onespirit.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
