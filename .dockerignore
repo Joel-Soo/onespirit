@@ -25,6 +25,9 @@ ENV
 __pycache__
 *.py[cod]
 *$py.class
+.ruff_cache/
+.mypy_cache/
+.pytype/
 *.so
 .Python
 build/
