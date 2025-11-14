@@ -4,7 +4,7 @@
 # This script runs on the HOST machine and "bounces" commands into the
 # correct Docker container using 'docker compose'.
 
-set -e # Exit immediately if a command exits with a non-zero status.
+set -euo pipefail # Exit on error, undefined variables, and pipe failures
 
 # --- Utility Functions ---
 
@@ -42,7 +42,7 @@ init() {
 
     echo "Waiting for database to be ready..."
     # This uses the healthcheck defined in the docker-compose.yaml file.
-    until [ "$(docker inspect -f {{.State.Health.Status}} $(docker compose ps -q postgres))" == "healthy" ]; do
+    until [ "$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q postgres)")" == "healthy" ]; do
         sleep 2
         echo -n "."
     done
@@ -63,7 +63,7 @@ init() {
 
 # --- Main Execution Logic ---
 
-COMMAND=$1
+COMMAND="${1:-}"
 
 if [ -z "$COMMAND" ]; then
     show_help
