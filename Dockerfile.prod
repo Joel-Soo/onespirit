@@ -1,6 +1,10 @@
 # Multi-stage build for production
 FROM python:3.13-slim as builder
 
+# Set environment variables for Python
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 # Set working directory
 WORKDIR /app
 
@@ -13,14 +17,18 @@ RUN apt-get update && apt-get install -y \
 # Install uv for faster dependency installation
 RUN pip install --no-cache-dir uv
 
-# Copy dependency files
-COPY pyproject.toml .
+# Copy dependency files (pyproject.toml and uv.lock)
+COPY pyproject.toml uv.lock ./
 
-# Install dependencies
-RUN uv pip install --system .
+# Install dependencies using uv.lock for reproducible builds
+RUN uv sync --frozen
 
 # Production stage
 FROM python:3.13-slim
+
+# Set environment variables for Python
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 # Set working directory
 WORKDIR /app
