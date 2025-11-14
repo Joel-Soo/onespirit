@@ -1,0 +1,74 @@
+# Multi-stage build for production
+FROM python:3.13-slim as builder
+
+# Set working directory
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv for faster dependency installation
+RUN pip install --no-cache-dir uv
+
+# Copy dependency files
+COPY pyproject.toml .
+
+# Install dependencies
+RUN uv pip install --system .
+
+# Production stage
+FROM python:3.13-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Create non-root user
+RUN groupadd -r onespirit && useradd -r -g onespirit onespirit
+
+# Create necessary directories
+RUN mkdir -p /app/static /app/media /app/logs /app/backups && \
+    chown -R onespirit:onespirit /app
+
+# Copy application code
+COPY --chown=onespirit:onespirit . .
+
+# Switch to non-root user
+USER onespirit
+
+# Collect static files
+RUN python manage.py collectstatic --noinput || true
+
+# Install gunicorn for production
+USER root
+RUN pip install --no-cache-dir gunicorn
+USER onespirit
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8000/health/', timeout=5)" || exit 1
+
+# Start gunicorn
+CMD ["gunicorn", \
+     "--bind", "0.0.0.0:8000", \
+     "--workers", "4", \
+     "--threads", "2", \
+     "--timeout", "60", \
+     "--access-logfile", "/app/logs/gunicorn-access.log", \
+     "--error-logfile", "/app/logs/gunicorn-error.log", \
+     "--log-level", "info", \
+     "onespirit_project.wsgi:application"]

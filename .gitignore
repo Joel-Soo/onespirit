@@ -16,3 +16,30 @@ acli
 .env
 .env.*
 !.env.example
+!.env.prod.example
+
+# Docker Secrets (exclude actual secrets, keep examples)
+secrets/*.txt
+secrets/*.backup.*
+!secrets/*.example
+
+# Database
+db.sqlite3
+*.sqlite3
+postgres_data/
+pgdata/
+
+# Logs
+logs/
+*.log
+
+# Docker volumes
+pgadmin_data/
+
+# Production backups
+backups/
+
+# Static and media files (production)
+onespirit/media/
+onespirit/static/
+staticfiles/
