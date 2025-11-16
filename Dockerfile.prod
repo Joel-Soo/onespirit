@@ -58,11 +58,6 @@ USER onespirit
 # Collect static files
 RUN python manage.py collectstatic --noinput || true
 
-# Install gunicorn for production
-USER root
-RUN pip install --no-cache-dir gunicorn
-USER onespirit
-
 # Expose port
 EXPOSE 8000
 
