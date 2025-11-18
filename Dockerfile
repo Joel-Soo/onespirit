@@ -1,6 +1,10 @@
 # Use an official Python runtime as a parent image
 FROM python:3.13-slim
 
+# Set environment variables for Python
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 # Set the working directory in the container
 WORKDIR /app
 
@@ -10,9 +14,11 @@ RUN pip install uv
 # Install git, curl, and vim
 RUN apt-get update && apt-get install -y git curl vim && rm -rf /var/lib/apt/lists/*
 
-# Copy the pyproject.toml and install dependencies
-COPY pyproject.toml .
-RUN uv pip install --system .
+# Copy dependency files (pyproject.toml and uv.lock)
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies using uv.lock for reproducible builds
+RUN uv sync --frozen
 
 # Copy the rest of the application
 COPY . .
