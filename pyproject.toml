@@ -19,3 +19,19 @@ dependencies = [
 dev = [
     "basedpyright>=1.31.4",
 ]
+
+[tool.basedpyright]
+pythonVersion = "3.13"
+typeCheckingMode = "basic"  # tighten gradually (e.g., "strict")
+venvPath = "."
+venv = ".venv"
+reportMissingTypeStubs = "none"
+reportUnknownVariableType = "warning"
+reportUnknownMemberType = "warning"
+reportPrivateUsage = "none"
+exclude = [
+    ".venv",
+    ".mypy_cache",
+    ".ruff_cache",
+    "migrations",
+]
