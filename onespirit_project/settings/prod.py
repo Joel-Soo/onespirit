@@ -5,22 +5,39 @@ This file contains settings specific to production environment.
 """
 
 from .base import *
+from pathlib import Path
+import os
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
 # ALLOWED_HOSTS must be set via environment variable in production
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
+_raw_hosts = os.getenv('ALLOWED_HOSTS', '')
+ALLOWED_HOSTS = [h.strip() for h in _raw_hosts.split(',') if h.strip()]
+
+
+def _read_secret_file(var_name: str) -> str | None:
+    """Read a secret value from file pointed by env var (e.g., SECRET_KEY_FILE)."""
+    path = os.getenv(var_name)
+    if path and os.path.isfile(path):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return f.read().strip()
+        except Exception:
+            return None
+    return None
 
 
 # Database
 # Use environment variables for database configuration in production
+_db_password = _read_secret_file('DB_PASSWORD_FILE') or os.getenv('DB_PASSWORD', '')
+
 DATABASES = {
     'default': {
         'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
         'NAME': os.getenv('DB_NAME', ''),
         'USER': os.getenv('DB_USER', ''),
-        'PASSWORD': os.getenv('DB_PASSWORD', ''),
+        'PASSWORD': _db_password,
         'HOST': os.getenv('DB_HOST', 'localhost'),
         'PORT': os.getenv('DB_PORT', '5432'),
     }
@@ -37,6 +54,12 @@ X_FRAME_OPTIONS = 'DENY'
 SECURE_HSTS_SECONDS = 31536000  # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
+
+# Secret key (prefer docker secret file if provided)
+SECRET_KEY = _read_secret_file('SECRET_KEY_FILE') or os.getenv('SECRET_KEY', SECRET_KEY)
+
+# Email configuration (optional password via secret file)
+EMAIL_HOST_PASSWORD = _read_secret_file('EMAIL_PASSWORD_FILE') or os.getenv('EMAIL_HOST_PASSWORD', '')
 
 
 # Caching configuration - use Redis in production
@@ -95,8 +118,8 @@ LOGGING = {
 }
 
 
-# Static files configuration
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+# Static files configuration (align with docker-compose.prod mount /app/static)
+STATIC_ROOT = Path('/app/static')
 
 
 # Tenant-specific settings
