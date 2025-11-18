@@ -15,6 +15,19 @@ DEBUG = False
 _raw_hosts = os.getenv('ALLOWED_HOSTS', '')
 ALLOWED_HOSTS = [h.strip() for h in _raw_hosts.split(',') if h.strip()]
 
+def _build_csrf_trusted(origins_hosts: list[str]) -> list[str]:
+    origins: list[str] = []
+    for h in origins_hosts:
+        host = h.strip()
+        if not host:
+            continue
+        if host.startswith('*.'):
+            # Allow all subdomains
+            origins.append(f"https://{host}")
+        else:
+            origins.append(f"https://{host}")
+    return origins
+
 
 def _read_secret_file(var_name: str) -> str | None:
     """Read a secret value from file pointed by env var (e.g., SECRET_KEY_FILE)."""
@@ -48,12 +61,21 @@ DATABASES = {
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
-SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 SECURE_HSTS_SECONDS = 31536000  # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
+
+# Trust reverse proxy proto header (nginx-proxy)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Cookie SameSite defaults
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+# CSRF trusted origins derived from ALLOWED_HOSTS
+CSRF_TRUSTED_ORIGINS = _build_csrf_trusted(ALLOWED_HOSTS)
 
 # Secret key (prefer docker secret file if provided)
 SECRET_KEY = _read_secret_file('SECRET_KEY_FILE') or os.getenv('SECRET_KEY', SECRET_KEY)
