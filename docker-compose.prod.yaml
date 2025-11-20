@@ -200,6 +200,9 @@ services:
       - EMAIL_PASSWORD_FILE=/run/secrets/email_password
       - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
       - SERVER_EMAIL=${SERVER_EMAIL}
+      # Gunicorn performance settings (optional - defaults to 2*CPU+1 workers)
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-}
+      - GUNICORN_THREADS=${GUNICORN_THREADS:-2}
     secrets:
       - db_password
       - django_secret_key
