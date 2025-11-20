@@ -63,10 +63,24 @@ load_env_vars() {
         exit 1
     fi
 
+    # Save the password from .env (if any) for comparison
+    DB_PASSWORD_FROM_ENV="$DB_PASSWORD"
+
     # Load DB password from secrets file (matches what postgres container uses)
+    # This ensures backup/restore use the same password as the running containers
     if [ -f "secrets/db_password.txt" ]; then
         DB_PASSWORD=$(cat secrets/db_password.txt)
-    elif [ -z "$DB_PASSWORD" ]; then
+        
+        # Warn if .env.prod has a different password (common misconfiguration)
+        if [ -n "$DB_PASSWORD_FROM_ENV" ] && [ "$DB_PASSWORD" != "$DB_PASSWORD_FROM_ENV" ]; then
+            echo "Warning: DB_PASSWORD in $ENV_FILE differs from secrets/db_password.txt"
+            echo "         Using password from secrets file (matches running containers)"
+        fi
+    elif [ -n "$DB_PASSWORD" ]; then
+        # Fallback to .env.prod if secrets file doesn't exist
+        echo "Warning: Using DB_PASSWORD from $ENV_FILE"
+        echo "         secrets/db_password.txt not found - this may not match running containers"
+    else
         echo "Error: DB password not found in secrets/db_password.txt or $ENV_FILE"
         exit 1
     fi
