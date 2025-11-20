@@ -68,7 +68,9 @@ services:
       - nginx-html:/usr/share/nginx/html
       - media-files:/app/media:ro
       - static-files:/app/static:ro
-      - ./config/nginx:/etc/nginx/conf.d:ro
+# Remove custom nginx config volume in production for now, and rely on
+# nginx-proxy automatically generating configuration based on environment variables.
+#      - ./config/nginx:/etc/nginx/conf.d:ro
       - ./logs/nginx:/var/log/nginx
     depends_on:
       - docker-socket-proxy
