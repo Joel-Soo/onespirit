@@ -143,6 +143,9 @@ LOGGING = {
 # Static files configuration (align with docker-compose.prod mount /app/static)
 STATIC_ROOT = Path('/app/static')
 
+# Media files configuration (align with docker-compose.prod mount /app/media)
+MEDIA_ROOT = Path('/app/media')
+
 
 # Tenant-specific settings
 TENANT_SETTINGS = {

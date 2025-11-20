@@ -19,6 +19,8 @@ from django.urls import path, include
 from django.http import JsonResponse
 from django.db import connection
 from django.core.cache import cache
+from django.conf import settings
+from django.conf.urls.static import static
 
 
 def health_view(_request):
@@ -64,3 +66,8 @@ urlpatterns = [
     path('people/', include('people.urls')),
     path('health/', health_view),
 ]
+
+# Serve media files in development
+# In production, nginx serves these directly from the volume mount
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
