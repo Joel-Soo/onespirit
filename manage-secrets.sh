@@ -168,6 +168,9 @@ cmd_init() {
     # Process optional secrets
     echo
     print_info "Optional secrets (press Enter to skip):"
+    print_info "  - email_password: For SMTP authentication (if using email features)"
+    print_info "  - aws_secret_access_key: For S3 storage (if using AWS)"
+    print_info "  - sentry_dsn: For error tracking (if using Sentry)"
     echo
 
     for secret_name in "${OPTIONAL_SECRETS[@]}"; do
