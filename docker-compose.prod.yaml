@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
 
   # Docker Socket Proxy - Provides restricted access to Docker API

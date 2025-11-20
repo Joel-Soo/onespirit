@@ -1,9 +1,17 @@
 {
-    "name": "onespirit-claude",
-    "build": {
-        "dockerfile": "../Dockerfile",
-        "context": ".."
-    },
+    "name": "onespirit-dev",
+    "dockerComposeFile": [
+        "../docker-compose.yaml"
+    ],
+    "service": "web",
+    "runServices": [
+        "postgres"
+    ],
+    "workspaceFolder": "/app",
+    "forwardPorts": [
+        8000,
+        5432
+    ],
     "customizations": {
         "vscode": {
             "extensions": [
@@ -13,5 +21,8 @@
             ]
         }
     },
-    "postCreateCommand": "uv pip install --system -e .[dev]"
+    "remoteUser": "root",
+    "overrideCommand": false,
+    // "postCreateCommand": "uv sync --frozen && ./setup.sh migrate && ./setup.sh check && ./setup.sh makemigrations-check",
+    // "postCreateCommand": "uv sync --frozen && ./setup.sh check && ./setup.sh makemigrations-check",
 }

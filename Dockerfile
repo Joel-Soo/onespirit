@@ -17,12 +17,15 @@ RUN apt-get update && apt-get install -y git curl vim && rm -rf /var/lib/apt/lis
 # Copy dependency files (pyproject.toml and uv.lock)
 COPY pyproject.toml uv.lock ./
 
+# Set uv environment location
+ENV UV_PROJECT_ENVIRONMENT=/usr/local
+
 # Install dependencies using uv.lock for reproducible builds
 RUN uv sync --frozen
 
 # Copy the rest of the application
 COPY . .
 
-# The command to run the application
-# Replace this with the actual command to run your application
-# CMD ["echo", "Please specify a command to run your application"]
+# Run the Django development server
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# CMD ["tail", "-f", "/dev/null"]`
