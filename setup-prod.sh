@@ -62,6 +62,14 @@ load_env_vars() {
         echo "Error: DB_NAME not set in $ENV_FILE"
         exit 1
     fi
+
+    # Load DB password from secrets file (matches what postgres container uses)
+    if [ -f "secrets/db_password.txt" ]; then
+        DB_PASSWORD=$(cat secrets/db_password.txt)
+    elif [ -z "$DB_PASSWORD" ]; then
+        echo "Error: DB password not found in secrets/db_password.txt or $ENV_FILE"
+        exit 1
+    fi
 }
 
 # --- Command Functions ---
@@ -144,8 +152,10 @@ backup_db() {
     echo "  User: $DB_USER"
     mkdir -p backups
 
-    # Perform the backup
-    docker compose -f $COMPOSE_FILE exec -T postgres pg_dump \
+    # Perform the backup with password from environment
+    docker compose -f $COMPOSE_FILE exec -T \
+        -e PGPASSWORD="$DB_PASSWORD" \
+        postgres pg_dump \
         -U "$DB_USER" \
         "$DB_NAME" > "$BACKUP_FILE"
 
@@ -207,13 +217,17 @@ restore_db() {
 
     echo "Restoring database from $BACKUP_FILE..."
 
-    # Restore the database
+    # Restore the database with password from environment
     if [[ $BACKUP_FILE == *.gz ]]; then
-        gunzip -c "$BACKUP_FILE" | docker compose -f $COMPOSE_FILE exec -T postgres psql \
+        gunzip -c "$BACKUP_FILE" | docker compose -f $COMPOSE_FILE exec -T \
+            -e PGPASSWORD="$DB_PASSWORD" \
+            postgres psql \
             -U "$DB_USER" \
             "$DB_NAME"
     else
-        docker compose -f $COMPOSE_FILE exec -T postgres psql \
+        docker compose -f $COMPOSE_FILE exec -T \
+            -e PGPASSWORD="$DB_PASSWORD" \
+            postgres psql \
             -U "$DB_USER" \
             "$DB_NAME" < "$BACKUP_FILE"
     fi
