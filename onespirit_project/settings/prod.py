@@ -83,12 +83,18 @@ SECRET_KEY = _read_secret_file('SECRET_KEY_FILE') or os.getenv('SECRET_KEY', SEC
 # Email configuration (optional password via secret file)
 EMAIL_HOST_PASSWORD = _read_secret_file('EMAIL_PASSWORD_FILE') or os.getenv('EMAIL_HOST_PASSWORD', '')
 
+# Redis configuration with password from secret file
+_redis_password = _read_secret_file('REDIS_PASSWORD_FILE') or os.getenv('REDIS_PASSWORD', '')
+if _redis_password:
+    REDIS_URL = f'redis://:{_redis_password}@redis:6379/1'
+else:
+    REDIS_URL = os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/1')
 
 # Caching configuration - use Redis in production
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/1'),
+        'LOCATION': REDIS_URL,
         'TIMEOUT': 300,
         'OPTIONS': {
             'MAX_ENTRIES': 10000,

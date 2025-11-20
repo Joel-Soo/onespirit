@@ -6,7 +6,7 @@
 set -e
 
 SECRETS_DIR="secrets"
-REQUIRED_SECRETS=("db_password" "django_secret_key")
+REQUIRED_SECRETS=("db_password" "django_secret_key" "redis_password")
 OPTIONAL_SECRETS=("email_password" "aws_secret_access_key" "sentry_dsn")
 
 # Colors for output
