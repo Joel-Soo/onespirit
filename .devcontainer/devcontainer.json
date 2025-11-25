@@ -9,7 +9,7 @@
     ],
     "workspaceFolder": "/app",
     "forwardPorts": [
-        8000,
+        8080,
         5432
     ],
     "customizations": {
@@ -22,7 +22,7 @@
         }
     },
     "remoteUser": "root",
-    "overrideCommand": false,
+    "overrideCommand": false
     // "postCreateCommand": "uv sync --frozen && ./setup.sh migrate && ./setup.sh check && ./setup.sh makemigrations-check",
     // "postCreateCommand": "uv sync --frozen && ./setup.sh check && ./setup.sh makemigrations-check",
 }

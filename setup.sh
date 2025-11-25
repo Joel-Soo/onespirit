@@ -149,14 +149,14 @@ cmd_init() {
     echo "Next steps:"
     echo "  1) ./$SCRIPT_NAME createsuperuser"
     echo "  2) ./$SCRIPT_NAME up"
-    echo "  3) Visit http://localhost:8000"
+    echo "  3) Visit http://localhost:8080"
 }
 
 cmd_up() {
     compose up -d
     echo
     info "Services started!"
-    echo "  - Web: http://localhost:8000"
+    echo "  - Web: http://localhost:8080"
     echo "  - Logs: ./$SCRIPT_NAME logs"
 }
 
@@ -179,17 +179,17 @@ cmd_bash() {
 cmd_manage() {
     if [ $# -lt 1 ]; then die "Usage: $SCRIPT_NAME manage <args>"; fi
     local args=("$@")
-    web_exec_or_run 'if command -v uv >/dev/null 2>&1; then uv run python manage.py '"${args[*]}"'; else python manage.py '"${args[*]}"'; fi'
+    web_exec_or_run 'if command -v uv >/dev/null 2>&1; then uv run python manage.py '"${args[*]:-}"'; else python manage.py '"${args[*]:-}"'; fi'
 }
 
 cmd_migrate() {
     local args=("$@")
-    web_exec_or_run 'if command -v uv >/dev/null 2>&1; then uv run python manage.py migrate '"${args[*]}"'; else python manage.py migrate '"${args[*]}"'; fi'
+    web_exec_or_run 'if command -v uv >/dev/null 2>&1; then uv run python manage.py migrate '"${args[*]:-}"'; else python manage.py migrate '"${args[*]:-}"'; fi'
 }
 
 cmd_makemigrations() {
     local args=("$@")
-    web_exec_or_run 'if command -v uv >/dev/null 2>&1; then uv run python manage.py makemigrations '"${args[*]}"'; else python manage.py makemigrations '"${args[*]}"'; fi'
+    web_exec_or_run 'if command -v uv >/dev/null 2>&1; then uv run python manage.py makemigrations '"${args[*]:-}"'; else python manage.py makemigrations '"${args[*]:-}"'; fi'
 }
 
 cmd_makemigrations_check() {
@@ -198,12 +198,12 @@ cmd_makemigrations_check() {
 
 cmd_createsuperuser() {
     local args=("$@")
-    web_exec_or_run 'if command -v uv >/dev/null 2>&1; then uv run python manage.py createsuperuser '"${args[*]}"'; else python manage.py createsuperuser '"${args[*]}"'; fi'
+    web_exec_or_run 'if command -v uv >/dev/null 2>&1; then uv run python manage.py createsuperuser '"${args[*]:-}"'; else python manage.py createsuperuser '"${args[*]:-}"'; fi'
 }
 
 cmd_test() {
     local args=("$@")
-    web_exec_or_run 'if command -v uv >/dev/null 2>&1; then uv run pytest '"${args[*]}"'; else pytest '"${args[*]}"'; fi'
+    web_exec_or_run 'if command -v uv >/dev/null 2>&1; then uv run pytest '"${args[*]:-}"'; else pytest '"${args[*]:-}"'; fi'
 }
 
 cmd_check() { web_exec_or_run 'if command -v uv >/dev/null 2>&1; then uv run python manage.py check; else python manage.py check; fi'; }

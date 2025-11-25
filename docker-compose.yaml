@@ -26,17 +26,17 @@ services:
       dockerfile: Dockerfile
     container_name: onespirit_web
     # command: tail -f /dev/null
-    command: python manage.py runserver 0.0.0.0:8000
+    command: python manage.py runserver 0.0.0.0:8080
     env_file:
       - .env
     environment:
       - DJANGO_SETTINGS_MODULE=onespirit_project.settings.dev
-      - DB_HOST=postgres  # Override for Docker network
+      - DB_HOST=postgres # Override for Docker network
       - DB_PORT=5432
     volumes:
       - .:/app
     ports:
-      - "${DJANGO_PORT:-8000}:8000"
+      - "${DJANGO_PORT:-8080}:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,7 +51,7 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@onespirit.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_SERVER_MODE: "False"
     ports:
       - "${PGADMIN_PORT:-5050}:80"
     volumes:
