@@ -96,8 +96,7 @@ def update_owner_permissions(sender, organization, old_owner, new_owner, **kwarg
             # Promote to admin level if not already
             if new_login_user.permissions_level not in ['admin']:
                 new_login_user.permissions_level = 'admin'
-                new_login_user.is_club_owner = True
-                new_login_user.save(update_fields=['permissions_level', 'is_club_owner'])
+                new_login_user.save(update_fields=['permissions_level'])
         except LoginUser.DoesNotExist:
             pass
 
@@ -118,8 +117,7 @@ def sync_loginuser_permissions(sender, instance, created, **kwargs):
             # Promote LoginUser to admin if they're org admin
             if login_user.permissions_level not in ['admin']:
                 login_user.permissions_level = 'admin'
-                login_user.is_club_owner = True
-                login_user.save(update_fields=['permissions_level', 'is_club_owner'])
+                login_user.save(update_fields=['permissions_level'])
         else:
             # Check if user is admin in any other organizations
             is_admin_elsewhere = OrganizationUser.objects.filter(

@@ -27,19 +27,19 @@ class ContactAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(LoginUser)  
+@admin.register(LoginUser)
 class LoginUserAdmin(admin.ModelAdmin):
-    list_display = ['contact', 'user', 'permissions_level', 'is_club_owner', 'is_club_staff']
-    list_filter = ['permissions_level', 'is_club_owner', 'is_club_staff', 'can_create_clubs']
+    list_display = ['contact', 'user', 'permissions_level', 'is_club_owner_display', 'is_club_staff']
+    list_filter = ['permissions_level', 'is_club_staff', 'can_create_clubs']
     search_fields = ['contact__first_name', 'contact__last_name', 'user__username']
-    readonly_fields = ['created_at', 'updated_at', 'last_login_attempt']
+    readonly_fields = ['is_club_owner_display', 'created_at', 'updated_at', 'last_login_attempt']
     
     fieldsets = (
         ('User Relationships', {
             'fields': ('user', 'contact')
         }),
         ('Permissions', {
-            'fields': ('permissions_level', 'is_club_owner', 'is_club_staff', 
+            'fields': ('permissions_level', 'is_club_owner_display', 'is_club_staff',
                       'can_create_clubs', 'can_manage_members')
         }),
         ('Metadata', {
@@ -47,3 +47,9 @@ class LoginUserAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+    def is_club_owner_display(self, obj):
+        """Display method for is_club_owner in admin."""
+        return obj.is_club_owner()
+    is_club_owner_display.short_description = 'Is Club Owner'
+    is_club_owner_display.boolean = True

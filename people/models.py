@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Optional
 
+from django.db.models import QuerySet
+
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -192,9 +194,6 @@ class LoginUser(models.Model):
     )
 
     # Permission Fields for club management
-    is_club_owner = models.BooleanField(
-        default=False, help_text="Can own and fully manage clubs"
-    )
     is_club_staff = models.BooleanField(
         default=False, help_text="Can assist with club management"
     )
@@ -232,16 +231,40 @@ class LoginUser(models.Model):
             models.Index(
                 fields=["permissions_level"], name="people_loginuser_perm_idx"
             ),
-            models.Index(fields=["is_club_owner"], name="people_loginuser_owner_idx"),
         ]
 
     def __str__(self) -> str:
         return f"{self.contact.get_full_name()} (Login User)"
 
+    def is_club_owner(self, club=None) -> bool:
+        """
+        Check if this user is a club owner.
+
+        Args:
+            club: Optional Club instance. If provided, checks ownership of that specific club.
+                  If None, checks if user is owner of ANY club.
+
+        Returns:
+            True if the contact has club_assignments where role="owner",
+            regardless of is_active status.
+        """
+        if not hasattr(self, 'contact') or not self.contact:
+            return False
+
+        if not hasattr(self.contact, 'club_assignments'):
+            return False
+
+        queryset = self.contact.club_assignments.filter(role="owner")
+
+        if club is not None:
+            queryset = queryset.filter(club=club)
+
+        return queryset.exists()
+
     def has_club_permissions(self) -> bool:
         """Check if user has any club management permissions"""
         return (
-            self.is_club_owner
+            self.is_club_owner()
             or self.is_club_staff
             or self.permissions_level in ["owner", "admin"]
         )
@@ -261,15 +284,41 @@ class LoginUser(models.Model):
             if org_permission in ["owner", "admin"]:
                 return True
 
-        if self.is_club_owner or self.permissions_level == "admin":
+        if self.is_club_owner(club) or self.permissions_level == "admin":
             return True
         # Future implementation will check club-specific permissions
         return False
 
-    def get_managed_clubs(self) -> None:
-        """Return queryset of clubs this user can manage (placeholder for future implementation)"""
-        # Will be implemented when Club model is created
-        pass
+    def get_managed_clubs(self, active_only: bool = True) -> QuerySet:
+        """
+        Return queryset of clubs this user can manage.
+
+        Args:
+            active_only: If True, only return clubs where the user has active staff assignments.
+                        Default is True to match typical permission checking patterns.
+
+        Returns:
+            QuerySet of Club objects where the user has staff assignments.
+            Returns all clubs if user is a system admin (permissions_level == "admin").
+        """
+        from clubs.models import Club
+
+        if not hasattr(self, 'contact') or not self.contact:
+            return Club.objects.none()
+
+        # System admins can manage all clubs in their tenant
+        if self.permissions_level == "admin":
+            return Club.objects.filter(tenant=self.contact.tenant)
+
+        # Get clubs where user has staff assignments
+        club_assignments = self.contact.club_assignments.all()
+
+        if active_only:
+            club_assignments = club_assignments.filter(is_active=True)
+
+        # Extract club IDs and return Club queryset
+        club_ids = club_assignments.values_list('club_id', flat=True)
+        return Club.objects.filter(id__in=club_ids)
 
     def can_access_organization(self, organization: Organization) -> bool:
         """Check if user can access organization"""
@@ -343,11 +392,13 @@ class LoginUser(models.Model):
             )
 
         # Ensure permission consistency
-        if self.is_club_owner and self.permissions_level not in ["owner", "admin"]:
-            self.permissions_level = "owner"
+        # Check if user is a club owner via ClubStaff assignments
+        if self.is_club_owner() and self.permissions_level not in ["owner", "admin"]:
+            raise ValidationError(
+                "Club owners must have permissions_level of 'owner' or 'admin'"
+            )
 
         if self.permissions_level == "admin":
-            self.is_club_owner = True
             self.can_create_clubs = True
             self.can_manage_members = True
 
@@ -375,7 +426,7 @@ def sync_user_permissions(
         user.is_active = instance.contact.is_active
 
     # Set Django staff status for club owners/admins
-    if instance.is_club_owner or instance.permissions_level in ["admin"]:
+    if instance.is_club_owner() or instance.permissions_level in ["admin"]:
         user.is_staff = True
 
     user.save(update_fields=["is_active", "is_staff"])

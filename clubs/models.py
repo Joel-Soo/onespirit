@@ -266,8 +266,8 @@ class ClubStaff(models.Model):
         Club, on_delete=models.CASCADE, related_name="staff_assignments"
     )
 
-    contact = models.OneToOneField(
-        "people.Contact", on_delete=models.CASCADE, related_name="club_assignment"
+    contact = models.ForeignKey(
+        "people.Contact", on_delete=models.CASCADE, related_name="club_assignments"
     )
 
     organization_user = models.OneToOneField(

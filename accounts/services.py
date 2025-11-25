@@ -164,7 +164,7 @@ def loginuser_can_access_account(
     if not tenant:
         return False
 
-    if login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner:
+    if login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner():
         if isinstance(account, TenantAccount):
             return account == tenant
         if isinstance(account, MemberAccount):
@@ -181,7 +181,7 @@ def get_accessible_member_accounts_for_loginuser(login_user: LoginUser) -> Query
     if not tenant:
         return MemberAccount.objects.none()
 
-    if login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner:
+    if login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner():
         return MemberAccount.objects.filter(tenant=tenant, is_active=True)
 
     if hasattr(login_user.contact, "member_account"):
@@ -199,7 +199,7 @@ def get_accessible_payment_history_for_loginuser(login_user: LoginUser) -> List[
     )
     tenant = get_tenant_account_for_loginuser(login_user)
 
-    if tenant and (login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner):
+    if tenant and (login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner()):
         accessible_accounts.append(tenant)
 
     # Batch by model for efficiency
@@ -222,7 +222,7 @@ def loginuser_can_create_member_accounts(login_user: LoginUser) -> bool:
     tenant = get_tenant_account_for_loginuser(login_user)
     if not tenant:
         return False
-    if login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner:
+    if login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner():
         return tenant.can_add_member()
     return False
 
@@ -230,7 +230,7 @@ def loginuser_can_create_member_accounts(login_user: LoginUser) -> bool:
 def loginuser_can_manage_billing(login_user: LoginUser) -> bool:
     return (
         login_user.permissions_level in ["admin", "owner"]
-        or login_user.is_club_owner
+        or login_user.is_club_owner()
         or login_user.can_manage_members
     )
 
@@ -239,7 +239,7 @@ def get_tenant_statistics_for_loginuser(
     login_user: LoginUser,
 ) -> Optional[Dict[str, Union[int, float, Decimal, str]]]:
     tenant = get_tenant_account_for_loginuser(login_user)
-    if not tenant or not (login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner):
+    if not tenant or not (login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner()):
         return None
 
     ct = ContentType.objects.get_for_model(tenant.__class__)
