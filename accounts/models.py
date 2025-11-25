@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 # Enums for PaymentHistory choices (best practice for type safety)
 class PaymentMethod(models.TextChoices):
     """Payment method choices for PaymentHistory."""
+
     CASH = "cash", "Cash"
     CARD = "card", "Credit/Debit Card"
     BANK_TRANSFER = "bank_transfer", "Bank Transfer"
@@ -34,6 +35,7 @@ class PaymentMethod(models.TextChoices):
 
 class PaymentStatus(models.TextChoices):
     """Payment status choices for PaymentHistory."""
+
     PENDING = "pending", "Pending"
     COMPLETED = "completed", "Completed"
     FAILED = "failed", "Failed"
@@ -44,6 +46,7 @@ class PaymentStatus(models.TextChoices):
 
 class PaymentType(models.TextChoices):
     """Payment type/category choices for PaymentHistory."""
+
     MEMBERSHIP_FEE = "membership_fee", "Membership Fee"
     GRADING_FEE = "grading_fee", "Grading Fee"
     EQUIPMENT = "equipment", "Equipment Purchase"
@@ -147,13 +150,13 @@ class TenantAccountContact(models.Model):
 
     account = models.ForeignKey("TenantAccount", on_delete=models.CASCADE)
     contact = models.ForeignKey(Contact, on_delete=models.CASCADE)
-    relationship_type = models.CharField(
+    role = models.CharField(
         max_length=50,
         choices=[
             ("primary", "Primary Contact"),
-            ("billing", "Billing Contact"),
+            ("admin", "Tenant Admin"),
         ],
-        default="primary",
+        default="admin",
     )
     added_date = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
@@ -169,7 +172,7 @@ class TenantAccountContact(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"{self.contact.get_full_name()} - {self.account} ({self.relationship_type})"
+        return f"{self.contact.get_full_name()} - {self.account} ({self.role})"
 
 
 class TenantAccount(Account):
@@ -331,11 +334,11 @@ class MemberAccount(Account):
 
     # Club Associations (many-to-many through ClubMember model)
     clubs = models.ManyToManyField(
-        'clubs.Club',
-        through='clubs.ClubMember',
-        related_name='account_members',
+        "clubs.Club",
+        through="clubs.ClubMember",
+        related_name="account_members",
         blank=True,
-        help_text="Clubs this member account is associated with"
+        help_text="Clubs this member account is associated with",
     )
 
     class Meta:
@@ -530,37 +533,45 @@ class PaymentHistory(models.Model):
         super().clean()
 
         # Validate amount is positive for non-refund payments
-        if self.payment_status not in [
-            PaymentStatus.REFUNDED,
-            PaymentStatus.PARTIAL_REFUND,
-        ] and self.amount < 0:
-            raise ValidationError({
-                "amount": "Amount must be positive for non-refund payments. "
-                          f"Current status: {self.get_payment_status_display()}"
-            })
+        if (
+            self.payment_status
+            not in [
+                PaymentStatus.REFUNDED,
+                PaymentStatus.PARTIAL_REFUND,
+            ]
+            and self.amount < 0
+        ):
+            raise ValidationError(
+                {
+                    "amount": "Amount must be positive for non-refund payments. "
+                    f"Current status: {self.get_payment_status_display()}"
+                }
+            )
 
         # Validate processor fee is not negative
         if self.processor_fee < 0:
-            raise ValidationError({
-                "processor_fee": "Processor fee cannot be negative"
-            })
+            raise ValidationError({"processor_fee": "Processor fee cannot be negative"})
 
         # Validate that refund payments have negative amounts or refund status
         if self.amount < 0 and self.payment_status not in [
             PaymentStatus.REFUNDED,
             PaymentStatus.PARTIAL_REFUND,
         ]:
-            raise ValidationError({
-                "payment_status": f"Negative amounts require refund status. "
-                                 f"Current status: {self.get_payment_status_display()}"
-            })
+            raise ValidationError(
+                {
+                    "payment_status": f"Negative amounts require refund status. "
+                    f"Current status: {self.get_payment_status_display()}"
+                }
+            )
 
         # Validate payment_date is not in the future (unless pending)
         if self.payment_date and self.payment_date > timezone.now():
             if self.payment_status not in [PaymentStatus.PENDING]:
-                raise ValidationError({
-                    "payment_date": "Payment date cannot be in the future for completed payments"
-                })
+                raise ValidationError(
+                    {
+                        "payment_date": "Payment date cannot be in the future for completed payments"
+                    }
+                )
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """Override save to enforce validation."""
