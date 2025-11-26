@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from typing import List
 
     from organizations.models import Organization
+    from clubs.models import Club
 
     from accounts.models import TenantAccount
 
@@ -289,7 +290,7 @@ class LoginUser(models.Model):
         # Future implementation will check club-specific permissions
         return False
 
-    def get_managed_clubs(self, active_only: bool = True) -> QuerySet:
+    def get_managed_clubs(self, active_only: bool = True) -> QuerySet[Club]:
         """
         Return queryset of clubs this user can manage.
 
@@ -301,6 +302,7 @@ class LoginUser(models.Model):
             QuerySet of Club objects where the user has staff assignments.
             Returns all clubs if user is a system admin (permissions_level == "admin").
         """
+        # Safe runtime import - no circular dependency risk
         from clubs.models import Club
 
         if not hasattr(self, 'contact') or not self.contact:
