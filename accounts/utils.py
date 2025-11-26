@@ -51,7 +51,7 @@ def create_tenant_account(
             TenantAccountContact.objects.create(
                 account=tenant,
                 contact=contact,
-                relationship_type="primary",
+                role="primary",
                 is_active=True,
             )
 

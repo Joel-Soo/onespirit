@@ -165,7 +165,7 @@ class TenantAccountContact(models.Model):
         unique_together = ["account", "contact"]
         indexes = [
             models.Index(
-                fields=["account", "relationship_type"],
+                fields=["account", "role"],
                 name="acc_tenant_contact_rel_idx",
             ),
             models.Index(fields=["is_active"], name="acc_tenant_contact_act_idx"),
