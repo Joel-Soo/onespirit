@@ -1,0 +1,261 @@
+services:
+
+  # Docker Socket Proxy - Provides restricted access to Docker API
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    restart: always
+    container_name: onespirit_docker_socket_proxy
+    networks:
+      - onespirit_network
+    privileged: true
+    environment:
+      - CONTAINERS=1
+      - NETWORKS=1
+      - SERVICES=0
+      - TASKS=0
+      - POST=0
+      - BUILD=0
+      - COMMIT=0
+      - CONFIGS=0
+      - DISTRIBUTION=0
+      - EXEC=0
+      - IMAGES=0
+      - INFO=1
+      - NODES=0
+      - PING=1
+      - PLUGINS=0
+      - SECRETS=0
+      - SESSION=0
+      - SWARM=0
+      - SYSTEM=0
+      - VERSION=1
+      - VOLUMES=0
+      - EVENTS=1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /run
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'              # Max 0.5 CPU cores
+          memory: 128M             # Max 128MB RAM
+        reservations:
+          cpus: '0.1'              # Guaranteed 0.1 CPU cores
+          memory: 32M              # Guaranteed 32MB RAM
+
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy:alpine
+    restart: always
+    container_name: onespirit_nginx_proxy
+    networks:
+      - onespirit_network
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - ENABLE_IPV6=true
+      - DEFAULT_HOST=${VIRTUAL_HOST}
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
+    labels:
+      com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy: "true"
+    volumes:
+      - nginx-certs:/etc/nginx/certs:ro
+      - nginx-vhost:/etc/nginx/vhost.d
+      - nginx-html:/usr/share/nginx/html
+      - media-files:/app/media:ro
+      - static-files:/app/static:ro
+# Remove custom nginx config volume in production for now, and rely on
+# nginx-proxy automatically generating configuration based on environment variables.
+#      - ./config/nginx:/etc/nginx/conf.d:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - docker-socket-proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'              # Max 1 CPU core
+          memory: 512M             # Max 512MB RAM
+        reservations:
+          cpus: '0.25'             # Guaranteed 0.25 CPU cores
+          memory: 128M             # Guaranteed 128MB RAM
+
+  nginx-letsencrypt:
+    image: nginxproxy/acme-companion:latest
+    restart: always
+    container_name: onespirit_letsencrypt
+    networks:
+      - onespirit_network
+    depends_on:
+      - nginx-proxy
+      - docker-socket-proxy
+    environment:
+      - DEFAULT_EMAIL=${LETSENCRYPT_EMAIL}
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
+    volumes:
+      - nginx-certs:/etc/nginx/certs:rw
+      - nginx-vhost:/etc/nginx/vhost.d
+      - nginx-html:/usr/share/nginx/html
+      - acme-state:/etc/acme.sh
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'              # Max 0.5 CPU cores
+          memory: 256M             # Max 256MB RAM
+        reservations:
+          cpus: '0.1'              # Guaranteed 0.1 CPU cores
+          memory: 64M              # Guaranteed 64MB RAM
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    container_name: onespirit_postgres_prod
+    networks:
+      - onespirit_network
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      # Password loaded from Docker secret
+      - POSTGRES_PASSWORD_FILE=/run/secrets/db_password
+    secrets:
+      - db_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'              # Max 2 CPU cores
+          memory: 2G               # Max 2GB RAM
+        reservations:
+          cpus: '0.5'              # Guaranteed 0.5 CPU cores
+          memory: 512M             # Guaranteed 512MB RAM
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    container_name: onespirit_redis_prod
+    networks:
+      - onespirit_network
+    secrets:
+      - redis_password
+    command: sh -c 'redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass "$$(cat /run/secrets/redis_password)"'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "sh", "-c", "redis-cli -a \"$$(cat /run/secrets/redis_password)\" ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'              # Max 1 CPU core
+          memory: 512M             # Max 512MB RAM (256MB for Redis + 256MB overhead)
+        reservations:
+          cpus: '0.25'             # Guaranteed 0.25 CPU cores
+          memory: 128M             # Guaranteed 128MB RAM
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    container_name: onespirit_web_prod
+    networks:
+      onespirit_network:
+        aliases:
+          - web
+    environment:
+      - DJANGO_SETTINGS_MODULE=onespirit_project.settings.prod
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      # DB_PASSWORD loaded from secret file
+      - DB_PASSWORD_FILE=/run/secrets/db_password
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      # REDIS_URL with password loaded from secret file
+      - REDIS_PASSWORD_FILE=/run/secrets/redis_password
+      # SECRET_KEY loaded from secret file
+      - SECRET_KEY_FILE=/run/secrets/django_secret_key
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+      - VIRTUAL_HOST=${VIRTUAL_HOST}
+      - VIRTUAL_PORT=8000
+      - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
+      # Email configuration
+      - EMAIL_HOST=${EMAIL_HOST:-smtp.gmail.com}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS:-True}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
+      # Email password loaded from secret file (if exists)
+      - EMAIL_PASSWORD_FILE=/run/secrets/email_password
+      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
+      - SERVER_EMAIL=${SERVER_EMAIL}
+      # Gunicorn performance settings (optional - defaults to 2*CPU+1 workers)
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-}
+      - GUNICORN_THREADS=${GUNICORN_THREADS:-2}
+    secrets:
+      - db_password
+      - django_secret_key
+      - redis_password
+      - email_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - media-files:/app/media
+      - static-files:/app/static
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'              # Max 2 CPU cores
+          memory: 1G               # Max 1GB RAM
+        reservations:
+          cpus: '0.5'              # Guaranteed 0.5 CPU cores
+          memory: 256M             # Guaranteed 256MB RAM
+
+# Docker Secrets Configuration
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  django_secret_key:
+    file: ./secrets/django_secret_key.txt
+  redis_password:
+    file: ./secrets/redis_password.txt
+  email_password:
+    file: ./secrets/email_password.txt
+
+networks:
+  onespirit_network:
+    driver: bridge
+
+volumes:
+  nginx-certs:
+    driver: local
+  nginx-vhost:
+    driver: local
+  nginx-html:
+    driver: local
+  acme-state:
+    driver: local
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  static-files:
+    driver: local
+  media-files:
+    driver: local

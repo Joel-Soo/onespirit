@@ -85,7 +85,7 @@ class ClubRelatedManager(models.Manager):
                         # Use all_objects to avoid circular manager calls while staying DB-agnostic
                         user_club_ids = list(
                             ClubStaff.all_objects.filter(
-                                user=login_user, is_active=True
+                                contact__login_user=login_user, is_active=True
                             ).values_list("club_id", flat=True)
                         )
 
@@ -266,8 +266,8 @@ class ClubStaff(models.Model):
         Club, on_delete=models.CASCADE, related_name="staff_assignments"
     )
 
-    user = models.ForeignKey(
-        "people.LoginUser", on_delete=models.CASCADE, related_name="club_assignments"
+    contact = models.ForeignKey(
+        "people.Contact", on_delete=models.CASCADE, related_name="club_assignments"
     )
 
     organization_user = models.OneToOneField(
@@ -304,13 +304,13 @@ class ClubStaff(models.Model):
         db_table = "clubs_clubstaff"
         indexes = [
             models.Index(fields=["club", "is_active"]),
-            models.Index(fields=["user", "is_active"]),
+            models.Index(fields=["contact", "is_active"]),
             models.Index(fields=["role"]),
             models.Index(fields=["organization_user"]),
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=["club", "user"], name="unique_staff_assignment_per_club"
+                fields=["club", "contact"], name="unique_staff_assignment_per_club"
             ),
             # Note: organization_user already has unique constraint from OneToOneField
         ]
@@ -319,14 +319,17 @@ class ClubStaff(models.Model):
         ordering = ["role", "assigned_at"]
 
     def __str__(self):
-        return f"{self.user.contact.get_full_name()} - {self.get_role_display()} at {self.club}"
+        return f"{self.contact.get_full_name()} - {self.get_role_display()} at {self.club}"
 
     def clean(self):
         """Validate staff assignment"""
         super().clean()
 
-        # Ensure staff user can access club tenant
-        if hasattr(self.user, "can_access_tenant") and not self.user.can_access_tenant(
+        # Ensure staff contact has login_user and can access club tenant
+        if not hasattr(self.contact, "login_user") or not self.contact.login_user:
+            raise ValidationError("Staff contact must have an associated login user")
+
+        if hasattr(self.contact.login_user, "can_access_tenant") and not self.contact.login_user.can_access_tenant(
             self.club.tenant
         ):
             raise ValidationError("Staff user cannot access club tenant")
@@ -334,7 +337,7 @@ class ClubStaff(models.Model):
         # Validate OrganizationUser consistency if provided
         if self.organization_user:
             # Ensure Django User matches between LoginUser and OrganizationUser
-            if self.user.user != self.organization_user.user:
+            if self.contact.login_user.user != self.organization_user.user:
                 raise ValidationError(
                     "OrganizationUser must belong to the same Django User as the LoginUser"
                 )
@@ -377,7 +380,7 @@ class ClubStaff(models.Model):
 
     def get_permission_hierarchy_level(self):
         """Get the permission hierarchy level for this staff assignment."""
-        if self.user.user.is_superuser:
+        if self.contact.login_user.user.is_superuser:
             return 100  # Superuser
         if self.is_organization_admin():
             return 90  # Organization admin

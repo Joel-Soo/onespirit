@@ -105,8 +105,7 @@ class TenantAwarePeopleModelsTest(TestCase):
         self.login_user1 = LoginUser.objects.create(
             user=self.user1,
             contact=self.contact1_t1,
-            permissions_level="admin",
-            is_club_owner=True
+            permissions_level="admin"
         )
         
         self.login_user2 = LoginUser.objects.create(

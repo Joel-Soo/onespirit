@@ -1,0 +1,202 @@
+# .dockerignore
+# This file specifies which files and directories should be excluded from the Docker build context
+# Excluding unnecessary files reduces build time and image size
+
+# ============================================
+# Version Control
+# ============================================
+.git
+.gitignore
+.gitattributes
+
+# ============================================
+# Python Virtual Environments (CRITICAL - saves ~680MB!)
+# ============================================
+.venv
+.venv_*
+venv
+env
+ENV
+*.egg-info
+
+# ============================================
+# Python Cache & Compiled Files
+# ============================================
+__pycache__
+*.py[cod]
+*$py.class
+.ruff_cache/
+.mypy_cache/
+.pytype/
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ============================================
+# Environment & Configuration Files
+# ============================================
+.env
+.env.*
+!.env.example
+!.env.prod.example
+
+# ============================================
+# Database Files
+# ============================================
+*.sqlite3
+*.db
+db.sqlite3
+postgres_data/
+pgdata/
+pgadmin_data/
+
+# ============================================
+# Logs & Runtime Files
+# ============================================
+logs/
+*.log
+*.log.*
+*.pid
+*.seed
+*.pid.lock
+
+# ============================================
+# Backup Files
+# ============================================
+backups/
+*.backup
+*.bak
+*.sql
+*.sql.gz
+
+# ============================================
+# Docker Files (not needed inside image)
+# ============================================
+docker-compose.yml
+docker-compose.yaml
+docker-compose.*.yml
+docker-compose.*.yaml
+Dockerfile
+Dockerfile.*
+.dockerignore
+
+# ============================================
+# Documentation
+# ============================================
+docs/
+*.md
+!README.md
+LICENSE
+CONTRIBUTING.md
+
+# ============================================
+# IDE & Editor Files
+# ============================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+.project
+.pydevproject
+.settings/
+
+# ============================================
+# Testing & Coverage
+# ============================================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+.pytest/
+
+# ============================================
+# CI/CD Files
+# ============================================
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+azure-pipelines.yml
+Jenkinsfile
+
+# ============================================
+# Static & Media (production only - handled by volumes)
+# ============================================
+# Uncomment if you don't want to include static/media in image
+# onespirit/static/
+# onespirit/media/
+# staticfiles/
+
+# ============================================
+# OS Files
+# ============================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ============================================
+# Security & Secret Files
+# ============================================
+*.pem
+*.key
+*.crt
+secrets/
+.serena
+
+# ============================================
+# Temporary Files
+# ============================================
+tmp/
+temp/
+*.tmp
+*.temp
+*.cache
+
+# ============================================
+# Development Scripts
+# ============================================
+setup.sh
+setup-prod.sh
+appctl.sh
+
+# ============================================
+# Deployment Files (example configs, not needed in image)
+# ============================================
+config/nginx/
+
+# ============================================
+# Node/NPM (if applicable)
+# ============================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
