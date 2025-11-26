@@ -255,7 +255,8 @@ class LoginUser(models.Model):
         if not hasattr(self.contact, 'club_assignments'):
             return False
 
-        queryset = self.contact.club_assignments.filter(role="owner")
+        # Use optimized query with select_related for single club check
+        queryset = self.contact.club_assignments.select_related('club').filter(role="owner")
 
         if club is not None:
             queryset = queryset.filter(club=club)
@@ -310,17 +311,106 @@ class LoginUser(models.Model):
 
         # System admins can manage all clubs in their tenant
         if self.permissions_level == "admin":
-            return Club.objects.filter(tenant=self.contact.tenant)
+            return Club.objects.select_related('tenant', 'organization').filter(
+                tenant=self.contact.tenant
+            )
 
-        # Get clubs where user has staff assignments
-        club_assignments = self.contact.club_assignments.all()
+        # Use optimized query with joins instead of separate queries
+        queryset = Club.objects.select_related(
+            'tenant', 'organization'
+        ).filter(
+            staff_assignments__contact=self.contact
+        )
 
         if active_only:
-            club_assignments = club_assignments.filter(is_active=True)
+            queryset = queryset.filter(staff_assignments__is_active=True)
 
-        # Extract club IDs and return Club queryset
-        club_ids = club_assignments.values_list('club_id', flat=True)
-        return Club.objects.filter(id__in=club_ids)
+        return queryset.distinct()
+
+    @classmethod
+    def prefetch_club_data(cls, queryset: QuerySet) -> QuerySet:
+        """
+        Prefetch related club data for efficient querying of LoginUser instances.
+        
+        Args:
+            queryset: QuerySet of LoginUser objects
+            
+        Returns:
+            QuerySet with optimized prefetches for club-related operations
+        """
+        return queryset.select_related(
+            'contact', 'contact__tenant', 'contact__organization', 'user'
+        ).prefetch_related(
+            'contact__club_assignments__club',
+            'contact__club_assignments__club__tenant',
+            'contact__club_assignments__club__organization'
+        )
+
+    @classmethod
+    def prefetch_organization_data(cls, queryset: QuerySet) -> QuerySet:
+        """
+        Prefetch related organization data for efficient querying.
+        
+        Args:
+            queryset: QuerySet of LoginUser objects
+            
+        Returns:
+            QuerySet with optimized prefetches for organization-related operations
+        """
+        return queryset.select_related(
+            'contact', 'contact__organization', 'user'
+        ).prefetch_related(
+            'user__organizations_organizationuser__organization',
+            'user__organizations_organizationowner__organization',
+        )
+
+    def get_owned_clubs(self) -> QuerySet[Club]:
+        """
+        Get clubs owned by this user with optimized query.
+        
+        Returns:
+            QuerySet of Club objects where this user is an owner
+        """
+        # Safe runtime import - no circular dependency risk
+        from clubs.models import Club
+        
+        if not hasattr(self, 'contact') or not self.contact:
+            return Club.objects.none()
+            
+        return Club.objects.select_related(
+            'tenant', 'organization'
+        ).filter(
+            staff_assignments__contact=self.contact,
+            staff_assignments__role='owner'
+        ).distinct()
+
+    def get_staff_clubs(self, role: str = None) -> QuerySet[Club]:
+        """
+        Get clubs where user has staff assignments with optimized query.
+        
+        Args:
+            role: Optional role filter ('owner', 'manager', etc.)
+            
+        Returns:
+            QuerySet of Club objects where user has staff assignments
+        """
+        # Safe runtime import - no circular dependency risk
+        from clubs.models import Club
+        
+        if not hasattr(self, 'contact') or not self.contact:
+            return Club.objects.none()
+            
+        queryset = Club.objects.select_related(
+            'tenant', 'organization'
+        ).filter(
+            staff_assignments__contact=self.contact,
+            staff_assignments__is_active=True
+        )
+        
+        if role:
+            queryset = queryset.filter(staff_assignments__role=role)
+            
+        return queryset.distinct()
 
     def can_access_organization(self, organization: Organization) -> bool:
         """Check if user can access organization"""
@@ -350,12 +440,19 @@ class LoginUser(models.Model):
         return organization.is_owner(self.user)
 
     def get_organizations(self) -> List[Organization]:
-        """Get all organizations user belongs to"""
+        """Get all organizations user belongs to with optimized query"""
         from organizations.models import OrganizationUser
 
         user = self.user
-        org_users = OrganizationUser.objects.filter(user=user)
-        return [org_user.organization for org_user in org_users]
+        # Use select_related to avoid N+1 queries
+        org_users = OrganizationUser.objects.select_related('organization').filter(user=user)
+        organizations = [org_user.organization for org_user in org_users]
+        
+        # Also include direct organization membership through Contact
+        if self.contact.organization and self.contact.organization not in organizations:
+            organizations.append(self.contact.organization)
+            
+        return organizations
 
     def get_organization_permission_level(
         self, organization: Organization
@@ -376,6 +473,61 @@ class LoginUser(models.Model):
             ).exists():
                 return "member"
             return None
+
+    def get_club_permissions_summary(self) -> dict:
+        """
+        Get comprehensive summary of user's club permissions with optimized queries.
+        
+        Returns:
+            Dictionary containing permission summary with pre-fetched data
+        """
+        # Safe runtime import - no circular dependency risk
+        from clubs.models import Club
+        
+        if not hasattr(self, 'contact') or not self.contact:
+            return {
+                'is_admin': self.permissions_level == 'admin',
+                'owned_clubs': [],
+                'managed_clubs': [],
+                'all_clubs': [],
+                'can_create_clubs': self.can_create_clubs,
+                'can_manage_members': self.can_manage_members,
+            }
+        
+        # Get all clubs with staff assignments in one optimized query
+        clubs_with_assignments = Club.objects.select_related(
+            'tenant', 'organization'
+        ).prefetch_related(
+            'staff_assignments'
+        ).filter(
+            staff_assignments__contact=self.contact,
+            staff_assignments__is_active=True
+        ).distinct()
+        
+        owned_clubs = []
+        managed_clubs = []
+        
+        for club in clubs_with_assignments:
+            # Check assignments for this club
+            user_assignments = [
+                assignment for assignment in club.staff_assignments.all() 
+                if assignment.contact == self.contact and assignment.is_active
+            ]
+            
+            if any(assignment.role == 'owner' for assignment in user_assignments):
+                owned_clubs.append(club)
+            
+            if any(assignment.role in ['owner', 'manager'] for assignment in user_assignments):
+                managed_clubs.append(club)
+        
+        return {
+            'is_admin': self.permissions_level == 'admin',
+            'owned_clubs': owned_clubs,
+            'managed_clubs': managed_clubs,
+            'all_clubs': list(clubs_with_assignments),
+            'can_create_clubs': self.can_create_clubs,
+            'can_manage_members': self.can_manage_members,
+        }
 
     def can_access_tenant(self, tenant: TenantAccount) -> bool:
         """Check if user can access specific tenant - required by middleware"""
