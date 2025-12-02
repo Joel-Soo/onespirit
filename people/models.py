@@ -270,10 +270,28 @@ class UserProfile(models.Model):
         # Future implementation will check club-specific permissions
         return False
 
-    def get_managed_clubs(self) -> None:
-        """Return queryset of clubs this user can manage (placeholder for future implementation)"""
-        # Will be implemented when Club model is created
-        pass
+    def get_managed_clubs(self):
+        """Return queryset of clubs this user can manage.
+
+        System admins manage all clubs in their tenant; regular users manage clubs
+        where they have active staff assignments.
+        """
+        from clubs.models import Club
+
+        # System admins can manage all clubs in their tenant
+        if self.is_system_admin:
+            return (
+                Club.objects.select_related("tenant", "organization").filter(
+                    tenant=self.contact.tenant
+                )
+            )
+
+        # Regular users: clubs where they have active staff assignments
+        return (
+            Club.objects.select_related("tenant", "organization")
+            .filter(staff_assignments__user=self, staff_assignments__is_active=True)
+            .distinct()
+        )
 
     def can_access_organization(self, organization: Organization) -> bool:
         """Check if user can access organization"""
