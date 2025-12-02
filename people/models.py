@@ -174,20 +174,20 @@ class Contact(models.Model):
         return orgs
 
 
-class LoginUser(models.Model):
-    """LoginUser model for contacts that can login and manage club membership"""
+class UserProfile(models.Model):
+    """UserProfile model for contacts that can login and manage club membership"""
 
     # Relationship Fields
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
-        related_name="login_profile",
+        related_name="profile",
         help_text="Django User account for authentication",
     )
     contact = models.OneToOneField(
         Contact,
         on_delete=models.CASCADE,
-        related_name="login_user",
+        related_name="user_profile",
         help_text="Associated contact information",
     )
 
@@ -226,8 +226,8 @@ class LoginUser(models.Model):
     last_login_attempt = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        verbose_name = "Login User"
-        verbose_name_plural = "Login Users"
+        verbose_name = "User Profile"
+        verbose_name_plural = "User Profiles"
         indexes = [
             models.Index(
                 fields=["permissions_level"], name="people_loginuser_perm_idx"
@@ -236,7 +236,7 @@ class LoginUser(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"{self.contact.get_full_name()} (Login User)"
+        return f"{self.contact.get_full_name()} (User Profile)"
 
     def has_club_permissions(self) -> bool:
         """Check if user has any club management permissions"""
@@ -363,9 +363,9 @@ def create_login_user_profile(
     pass
 
 
-@receiver(post_save, sender=LoginUser)
+@receiver(post_save, sender=UserProfile)
 def sync_user_permissions(
-    sender: type[LoginUser], instance: LoginUser, **kwargs: Any
+    sender: type[UserProfile], instance: UserProfile, **kwargs: Any
 ) -> None:
     """Sync Django User permissions with LoginUser permissions"""
     user = instance.user

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Contact, LoginUser
+from .models import Contact, UserProfile
 
 
 @admin.register(Contact)
@@ -27,8 +27,8 @@ class ContactAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(LoginUser)  
-class LoginUserAdmin(admin.ModelAdmin):
+@admin.register(UserProfile)  
+class UserProfileAdmin(admin.ModelAdmin):
     list_display = ['contact', 'user', 'permissions_level', 'is_club_owner', 'is_club_staff']
     list_filter = ['permissions_level', 'is_club_owner', 'is_club_staff', 'can_create_clubs']
     search_fields = ['contact__first_name', 'contact__last_name', 'user__username']
