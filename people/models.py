@@ -293,6 +293,15 @@ class UserProfile(models.Model):
             .distinct()
         )
 
+    def get_club_permissions_summary(self) -> dict:
+        """Return a summary of the user's club-related permissions."""
+        return {
+            "is_admin": self.is_system_admin,
+            "can_create_clubs": self.can_create_clubs,
+            "can_manage_members": self.can_manage_members,
+            "is_club_owner": self.is_club_owner,
+        }
+
     def can_access_organization(self, organization: Organization) -> bool:
         """Check if user can access organization"""
         user = self.user
