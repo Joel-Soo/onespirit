@@ -196,8 +196,8 @@ class TenantAwarePeopleModelsTest(TestCase):
     def test_login_user_get_tenant_account(self):
         """Test UserProfile.get_tenant_account method"""
         from accounts import services as acct_svc
-        self.assertEqual(acct_svc.get_tenant_account_for_loginuser(self.user_profile1), self.tenant1)
-        self.assertEqual(acct_svc.get_tenant_account_for_loginuser(self.user_profile2), self.tenant2)
+        self.assertEqual(acct_svc.get_tenant_account_for_userprofile(self.user_profile1), self.tenant1)
+        self.assertEqual(acct_svc.get_tenant_account_for_userprofile(self.user_profile2), self.tenant2)
 
     def test_login_user_tenant_scoped_club_management(self):
         """Test that club management respects tenant boundaries"""
