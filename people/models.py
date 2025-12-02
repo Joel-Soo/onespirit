@@ -192,6 +192,10 @@ class UserProfile(models.Model):
     )
 
     # Permission Fields for club management
+    is_system_admin = models.BooleanField(
+        default=False,
+        help_text="System administrator with full tenant-wide access"
+    )
     is_club_owner = models.BooleanField(
         default=False, help_text="Can own and fully manage clubs"
     )
