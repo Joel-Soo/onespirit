@@ -379,7 +379,7 @@ def sync_user_permissions(
         user.is_active = instance.contact.is_active
 
     # Set Django staff status for club owners/admins
-    if instance.is_club_owner or instance.permissions_level in ["admin"]:
+    if instance.is_club_owner or instance.is_system_admin:
         user.is_staff = True
 
     user.save(update_fields=["is_active", "is_staff"])
