@@ -245,9 +245,9 @@ class UserProfile(models.Model):
     def has_club_permissions(self) -> bool:
         """Check if user has any club management permissions"""
         return (
-            self.is_club_owner
-            or self.is_club_staff
-            or self.permissions_level in ["owner", "admin"]
+            self.is_club_owner  # Has club-specific ownership via ClubStaff
+            or self.is_system_admin  # System-wide admin access
+            or self.can_manage_members  # Can manage members globally
         )
 
     def can_manage_club(self, club: Any = None) -> bool:
@@ -265,7 +265,7 @@ class UserProfile(models.Model):
             if org_permission in ["owner", "admin"]:
                 return True
 
-        if self.is_club_owner or self.permissions_level == "admin":
+        if self.is_club_owner or self.is_system_admin:
             return True
         # Future implementation will check club-specific permissions
         return False
