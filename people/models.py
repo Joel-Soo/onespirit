@@ -339,7 +339,7 @@ class UserProfile(models.Model):
 
         if not self.contact_id:
             raise ValidationError(
-                {"contact": "LoginUser must be associated with a Contact"}
+                {"contact": "UserProfile must be associated with a Contact"}
             )
 
         # Ensure permission consistency
@@ -352,12 +352,12 @@ class UserProfile(models.Model):
             self.can_manage_members = True
 
 
-# Signal handlers for LoginUser
+# Signal handlers for UserProfile
 @receiver(post_save, sender=User)
 def create_login_user_profile(
     sender: type[User], instance: User, created: bool, **kwargs: Any
 ) -> None:
-    """Create LoginUser profile when User is created (optional)"""
+    """Create UserProfile profile when User is created (optional)"""
     # This will be called when creating User accounts
     # Implementation can be added later when user registration is implemented
     pass
@@ -367,7 +367,7 @@ def create_login_user_profile(
 def sync_user_permissions(
     sender: type[UserProfile], instance: UserProfile, **kwargs: Any
 ) -> None:
-    """Sync Django User permissions with LoginUser permissions"""
+    """Sync Django User permissions with UserProfile permissions"""
     user = instance.user
 
     # Set Django User active status based on Contact active status

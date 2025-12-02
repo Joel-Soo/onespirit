@@ -2,7 +2,7 @@
 Utility functions for account management operations.
 
 This module provides utility functions for creating accounts and generating
-account summaries. For account-related operations on Contact and LoginUser models,
+account summaries. For account-related operations on Contact and UserProfile models,
 use the service functions in accounts.services instead.
 """
 
@@ -11,7 +11,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Optional, Union
 
-from people.models import Contact, LoginUser
+from people.models import Contact, UserProfile
 
 if TYPE_CHECKING:
     from typing import Dict, List, Tuple

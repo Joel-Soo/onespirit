@@ -70,11 +70,11 @@ class ClubRelatedManager(models.Manager):
                     # Skip user filtering if 'club' exists but isn't a ForeignKey relationship
                     return queryset
 
-                # Get LoginUser instance from Django User
+                # Get UserProfile instance from Django User
                 try:
-                    from people.models import LoginUser
+                    from people.models import UserProfile
 
-                    login_user = LoginUser.objects.get(user=user)
+                    login_user = UserProfile.objects.get(user=user)
 
                     # Check if user is superuser or has system-wide admin permissions
                     if user.is_superuser or login_user.permissions_level == "admin":
@@ -95,8 +95,8 @@ class ClubRelatedManager(models.Manager):
                             # User has no club assignments: return empty queryset
                             queryset = queryset.none()
 
-                except LoginUser.DoesNotExist:
-                    # User has no LoginUser profile: return empty queryset
+                except UserProfile.DoesNotExist:
+                    # User has no UserProfile profile: return empty queryset
                     queryset = queryset.none()
 
             except FieldDoesNotExist:
@@ -252,7 +252,7 @@ class Club(Organization):
 class ClubStaff(models.Model):
     """
     Through model for managing club staff with roles and permissions.
-    Links LoginUser to Club with specific role assignments.
+    Links UserProfile to Club with specific role assignments.
     """
 
     ROLE_CHOICES = [
@@ -267,7 +267,7 @@ class ClubStaff(models.Model):
     )
 
     user = models.ForeignKey(
-        "people.LoginUser", on_delete=models.CASCADE, related_name="club_assignments"
+        "people.UserProfile", on_delete=models.CASCADE, related_name="club_assignments"
     )
 
     organization_user = models.OneToOneField(
@@ -333,10 +333,10 @@ class ClubStaff(models.Model):
 
         # Validate OrganizationUser consistency if provided
         if self.organization_user:
-            # Ensure Django User matches between LoginUser and OrganizationUser
+            # Ensure Django User matches between UserProfile and OrganizationUser
             if self.user.user != self.organization_user.user:
                 raise ValidationError(
-                    "OrganizationUser must belong to the same Django User as the LoginUser"
+                    "OrganizationUser must belong to the same Django User as the UserProfile"
                 )
 
             # Ensure Organization matches Club (since Club inherits from Organization)

@@ -1,0 +1,349 @@
+"""
+Tests for LoginUser model
+"""
+
+from django.contrib.auth.models import User
+from django.db import connection
+from django.test import TestCase
+from django.utils import timezone
+
+from accounts.models import TenantAccount
+from clubs.models import Club, ClubStaff
+from people.models import Contact, LoginUser
+
+
+class LoginUserTest(TestCase):
+    """Test LoginUser model methods"""
+
+    def setUp(self):
+        """Set up test data for performance testing"""
+        # Create tenant
+        self.tenant = TenantAccount.objects.create(
+            billing_email="test@example.com",
+            tenant_name="Test Tenant",
+            tenant_slug="test-tenant",
+            subscription_type="basic",
+            subscription_start_date=timezone.now(),
+            monthly_fee="99.99",
+        )
+
+        # Create contacts
+        self.contact1 = Contact.objects.create(
+            first_name="John",
+            last_name="Doe",
+            date_of_birth="1990-01-01",
+            address="123 Main St",
+            mobile_number="555-0101",
+            email="john@test.com",
+            tenant=self.tenant,
+        )
+
+        self.contact2 = Contact.objects.create(
+            first_name="Jane",
+            last_name="Smith",
+            date_of_birth="1985-05-15",
+            address="456 Oak Ave",
+            mobile_number="555-0102",
+            email="jane@test.com",
+            tenant=self.tenant,
+        )
+
+        # Create users and login users
+        self.user1 = User.objects.create_user(
+            username="john_user", email="john@test.com", password="testpass123"
+        )
+
+        self.user2 = User.objects.create_user(
+            username="jane_user", email="jane@test.com", password="testpass123"
+        )
+
+        self.login_user1 = LoginUser.objects.create(
+            user=self.user1,
+            contact=self.contact1,
+            permissions_level="owner",
+            can_create_clubs=True,
+            can_manage_members=True,
+        )
+
+        self.login_user2 = LoginUser.objects.create(
+            user=self.user2,
+            contact=self.contact2,
+            permissions_level="staff",
+            is_club_staff=True,
+        )
+
+        # Create clubs
+        self.club1 = Club.objects.create(
+            name="Test Club 1", tenant=self.tenant, active=True
+        )
+
+        self.club2 = Club.objects.create(
+            name="Test Club 2", tenant=self.tenant, active=True
+        )
+
+        self.club3 = Club.objects.create(
+            name="Inactive Club", tenant=self.tenant, active=False
+        )
+
+        # Create club staff assignments
+        self.staff1_club1 = ClubStaff.objects.create(
+            contact=self.contact1, club=self.club1, role="owner", is_active=True
+        )
+
+        self.staff1_club2 = ClubStaff.objects.create(
+            contact=self.contact1, club=self.club2, role="manager", is_active=True
+        )
+
+        self.staff2_club1 = ClubStaff.objects.create(
+            contact=self.contact2, club=self.club1, role="staff", is_active=True
+        )
+
+        # Inactive assignment
+        self.staff1_club3 = ClubStaff.objects.create(
+            contact=self.contact1, club=self.club3, role="owner", is_active=False
+        )
+
+    def test_get_managed_clubs(self):
+        """Test get_managed_clubs returns correct clubs"""
+        clubs = self.login_user1.get_managed_clubs()
+
+        # Should return club1 and club2 (both active assignments)
+        self.assertEqual(clubs.count(), 2)
+        self.assertIn(self.club1, clubs)
+        self.assertIn(self.club2, clubs)
+        self.assertNotIn(self.club3, clubs)  # Inactive assignment
+
+    def test_get_managed_clubs_active_only_false(self):
+        """Test get_managed_clubs with active_only=False"""
+        clubs = self.login_user1.get_managed_clubs(active_only=False)
+
+        # Should return all clubs including inactive assignments
+        self.assertEqual(clubs.count(), 3)
+        self.assertIn(self.club1, clubs)
+        self.assertIn(self.club2, clubs)
+        self.assertIn(self.club3, clubs)
+
+    def test_get_managed_clubs_admin_permissions(self):
+        """Test get_managed_clubs for admin users"""
+        # Create admin user
+        admin_contact = Contact.objects.create(
+            first_name="Admin",
+            last_name="User",
+            date_of_birth="1980-01-01",
+            address="789 Admin St",
+            mobile_number="555-0103",
+            email="admin@test.com",
+            tenant=self.tenant,
+        )
+
+        admin_user = User.objects.create_user(
+            username="admin_user", email="admin@test.com"
+        )
+
+        admin_login = LoginUser.objects.create(
+            user=admin_user, contact=admin_contact, permissions_level="admin"
+        )
+
+        # Admin should get all clubs in tenant
+        clubs = admin_login.get_managed_clubs()
+        self.assertEqual(clubs.count(), 3)
+
+    def test_is_club_owner(self):
+        """Test is_club_owner"""
+        # Test general ownership check
+        self.assertTrue(self.login_user1.is_club_owner())
+        self.assertFalse(self.login_user2.is_club_owner())
+
+        # Test specific club ownership
+        self.assertTrue(self.login_user1.is_club_owner(self.club1))
+        self.assertFalse(
+            self.login_user1.is_club_owner(self.club2)
+        )  # Manager, not owner
+        self.assertFalse(self.login_user2.is_club_owner(self.club1))
+
+    def test_get_owned_clubs(self):
+        """Test get_owned_clubs method"""
+        owned_clubs = self.login_user1.get_owned_clubs()
+
+        # Should only return clubs where user is owner
+        self.assertEqual(owned_clubs.count(), 1)
+        self.assertIn(self.club1, owned_clubs)
+        self.assertNotIn(self.club2, owned_clubs)  # Manager role
+
+        # User2 should have no owned clubs
+        owned_clubs2 = self.login_user2.get_owned_clubs()
+        self.assertEqual(owned_clubs2.count(), 0)
+
+    def test_get_staff_clubs(self):
+        """Test get_staff_clubs method"""
+        # Test without role filter
+        staff_clubs = self.login_user1.get_staff_clubs()
+        self.assertEqual(staff_clubs.count(), 2)  # owner + manager roles
+        self.assertIn(self.club1, staff_clubs)
+        self.assertIn(self.club2, staff_clubs)
+
+        # Test with owner role filter
+        owner_clubs = self.login_user1.get_staff_clubs(role="owner")
+        self.assertEqual(owner_clubs.count(), 1)
+        self.assertIn(self.club1, owner_clubs)
+
+        # Test with manager role filter
+        manager_clubs = self.login_user1.get_staff_clubs(role="manager")
+        self.assertEqual(manager_clubs.count(), 1)
+        self.assertIn(self.club2, manager_clubs)
+
+    def test_get_club_permissions_summary(self):
+        """Test get_club_permissions_summary method"""
+        summary = self.login_user1.get_club_permissions_summary()
+
+        self.assertFalse(summary["is_admin"])
+        self.assertTrue(summary["can_create_clubs"])
+        self.assertTrue(summary["can_manage_members"])
+
+        # Check club lists
+        self.assertEqual(len(summary["owned_clubs"]), 1)
+        self.assertEqual(len(summary["managed_clubs"]), 2)
+        self.assertEqual(len(summary["all_clubs"]), 2)
+
+        # Verify correct clubs
+        owned_club_names = [club.name for club in summary["owned_clubs"]]
+        self.assertIn("Test Club 1", owned_club_names)
+
+        managed_club_names = [club.name for club in summary["managed_clubs"]]
+        self.assertIn("Test Club 1", managed_club_names)
+        self.assertIn("Test Club 2", managed_club_names)
+
+    def test_get_club_permissions_summary_admin(self):
+        """Test get_club_permissions_summary for admin user"""
+        # Create admin user
+        admin_contact = Contact.objects.create(
+            first_name="Admin",
+            last_name="User",
+            date_of_birth="1980-01-01",
+            address="789 Admin St",
+            mobile_number="555-0103",
+            email="admin@test.com",
+            tenant=self.tenant,
+        )
+
+        admin_user = User.objects.create_user(
+            username="admin_user", email="admin@test.com"
+        )
+
+        admin_login = LoginUser.objects.create(
+            user=admin_user, contact=admin_contact, permissions_level="admin"
+        )
+
+        summary = admin_login.get_club_permissions_summary()
+        self.assertTrue(summary["is_admin"])
+
+    def test_prefetch_club_data_classmethod(self):
+        """Test prefetch_club_data class method"""
+        # Test that the method returns a QuerySet
+        queryset = LoginUser.objects.all()
+        optimized_queryset = LoginUser.prefetch_club_data(queryset)
+
+        # Should return same number of objects
+        self.assertEqual(optimized_queryset.count(), 2)
+
+        # Verify it's still a QuerySet
+        self.assertTrue(hasattr(optimized_queryset, "select_related"))
+
+    def test_prefetch_organization_data_classmethod(self):
+        """Test prefetch_organization_data class method"""
+        queryset = LoginUser.objects.all()
+        optimized_queryset = LoginUser.prefetch_organization_data(queryset)
+
+        # Should return same number of objects
+        self.assertEqual(optimized_queryset.count(), 2)
+
+        # Verify it's still a QuerySet
+        self.assertTrue(hasattr(optimized_queryset, "prefetch_related"))
+
+    def test_query_optimization_performance(self):
+        """Test that optimized methods reduce query count"""
+        # Reset query log
+        connection.queries_log.clear()
+
+        # Test optimized get_managed_clubs
+        with self.assertNumQueries(1):  # Should be single optimized query
+            clubs = list(self.login_user1.get_managed_clubs())
+
+        # Test optimized get_owned_clubs
+        with self.assertNumQueries(1):  # Should be single optimized query
+            owned = list(self.login_user1.get_owned_clubs())
+
+        # Test etptimized get_staff_clubs
+        with self.assertNumQueries(1):  # Should be single optimized query
+            staff = list(self.login_user1.get_staff_clubs())
+
+    def test_edge_case_no_contact(self):
+        """Test methods handle missing contact gracefully"""
+        # Create login user without contact (shouldn't happen in practice)
+        user_no_contact = User.objects.create_user(
+            username="no_contact", email="nocontact@test.com"
+        )
+
+        # This will fail validation, so we'll test the method logic directly
+        # by temporarily removing contact
+        temp_contact = self.login_user1.contact
+        self.login_user1.contact = None
+
+        # Methods should return empty querysets, not crash
+        self.assertEqual(self.login_user1.get_managed_clubs().count(), 0)
+        self.assertEqual(self.login_user1.get_owned_clubs().count(), 0)
+        self.assertEqual(self.login_user1.get_staff_clubs().count(), 0)
+        self.assertFalse(self.login_user1.is_club_owner())
+
+        # Restore contact
+        self.login_user1.contact = temp_contact
+
+    def test_edge_case_no_club_assignments(self):
+        """Test methods handle users with no club assignments"""
+        # Create user with no club assignments
+        contact_no_clubs = Contact.objects.create(
+            first_name="No",
+            last_name="Clubs",
+            date_of_birth="1990-01-01",
+            address="123 No Club St",
+            mobile_number="555-0104",
+            email="noclubs@test.com",
+            tenant=self.tenant,
+        )
+
+        user_no_clubs = User.objects.create_user(
+            username="no_clubs", email="noclubs@test.com"
+        )
+
+        login_no_clubs = LoginUser.objects.create(
+            user=user_no_clubs, contact=contact_no_clubs, permissions_level="member"
+        )
+
+        # All methods should return empty results
+        self.assertEqual(login_no_clubs.get_managed_clubs().count(), 0)
+        self.assertEqual(login_no_clubs.get_owned_clubs().count(), 0)
+        self.assertEqual(login_no_clubs.get_staff_clubs().count(), 0)
+        self.assertFalse(login_no_clubs.is_club_owner())
+
+        summary = login_no_clubs.get_club_permissions_summary()
+        self.assertEqual(len(summary["owned_clubs"]), 0)
+        self.assertEqual(len(summary["managed_clubs"]), 0)
+        self.assertEqual(len(summary["all_clubs"]), 0)
+
+    def test_distinct_query_handling(self):
+        """Test that distinct() properly handles multiple assignments"""
+        # Create another staff assignment for same user/club combination
+        # This could happen with different roles or date ranges
+        ClubStaff.objects.create(
+            contact=self.contact1,
+            club=self.club1,
+            role="manager",  # Different role, same club
+            is_active=True,
+        )
+
+        # Should still return club1 only once despite multiple assignments
+        managed_clubs = self.login_user1.get_managed_clubs()
+        club1_count = sum(1 for club in managed_clubs if club.id == self.club1.id)
+        self.assertEqual(
+            club1_count, 1, "Club should appear only once despite multiple assignments"
+        )

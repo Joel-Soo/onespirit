@@ -145,7 +145,7 @@ def get_account_summary(contact: Contact) -> Dict[str, object]:
     }
 
 
-# ----- LoginUser-centric services -----
+# ----- UserProfile-centric services -----
 
 def get_tenant_account_for_userprofile(user_profile: UserProfile) -> Optional[TenantAccount]:
     # If their contact has a member account, use its tenant
@@ -218,28 +218,28 @@ def get_accessible_payment_history_for_userprofile(user_profile: UserProfile) ->
     return sorted(history, key=lambda p: p.payment_date, reverse=True)
 
 
-def loginuser_can_create_member_accounts(login_user: LoginUser) -> bool:
-    tenant = get_tenant_account_for_loginuser(login_user)
+def userprofile_can_create_member_accounts(user_profile: UserProfile) -> bool:
+    tenant = get_tenant_account_for_userprofile(user_profile)
     if not tenant:
         return False
-    if login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner:
+    if user_profile.permissions_level in ["admin", "owner"] or user_profile.is_club_owner:
         return tenant.can_add_member()
     return False
 
 
-def loginuser_can_manage_billing(login_user: LoginUser) -> bool:
+def userprofile_can_manage_billing(user_profile: UserProfile) -> bool:
     return (
-        login_user.permissions_level in ["admin", "owner"]
-        or login_user.is_club_owner
-        or login_user.can_manage_members
+        user_profile.permissions_level in ["admin", "owner"]
+        or user_profile.is_club_owner
+        or user_profile.can_manage_members
     )
 
 
-def get_tenant_statistics_for_loginuser(
-    login_user: LoginUser,
+def get_tenant_statistics_for_userprofile(
+    user_profile: UserProfile,
 ) -> Optional[Dict[str, Union[int, float, Decimal, str]]]:
-    tenant = get_tenant_account_for_loginuser(login_user)
-    if not tenant or not (login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner):
+    tenant = get_tenant_account_for_userprofile(user_profile)
+    if not tenant or not (user_profile.permissions_level in ["admin", "owner"] or user_profile.is_club_owner):
         return None
 
     ct = ContentType.objects.get_for_model(tenant.__class__)

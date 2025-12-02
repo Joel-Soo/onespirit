@@ -251,10 +251,10 @@ class TenantAccessControlMiddleware:
         if user.is_superuser:
             return True
             
-        # Check if user is associated with the tenant through Contact/LoginUser
+        # Check if user is associated with the tenant through Contact/UserProfile
         try:
-            from people.models import LoginUser
-            login_user = LoginUser.objects.get(user=user)
+            from people.models import UserProfile
+            login_user = UserProfile.objects.get(user=user)
             
             # Use the utility method if available
             if hasattr(login_user, 'can_access_tenant'):
@@ -262,10 +262,10 @@ class TenantAccessControlMiddleware:
                 
             # Fallback: check if user has any account in this tenant
             from accounts import services as acct_svc
-            user_tenant = acct_svc.get_tenant_account_for_loginuser(login_user)
+            user_tenant = acct_svc.get_tenant_account_for_userprofile(login_user)
             return user_tenant == tenant
                 
-        except LoginUser.DoesNotExist:
+        except UserProfile.DoesNotExist:
             pass
             
         # Default: deny access
