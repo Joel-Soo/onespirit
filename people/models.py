@@ -374,11 +374,8 @@ class UserProfile(models.Model):
             )
 
         # Ensure permission consistency
-        if self.is_club_owner and self.permissions_level not in ["owner", "admin"]:
-            self.permissions_level = "owner"
-
-        if self.permissions_level == "admin":
-            self.is_club_owner = True
+        # System admins automatically get all capabilities
+        if self.is_system_admin:
             self.can_create_clubs = True
             self.can_manage_members = True
 
