@@ -164,7 +164,7 @@ def userprofile_can_access_account(
     if not tenant:
         return False
 
-    if user_profile.permissions_level in ["admin", "owner"] or user_profile.is_club_owner:
+    if user_profile.is_system_admin or user_profile.is_club_owner or user_profile.can_manage_members:
         if isinstance(account, TenantAccount):
             return account == tenant
         if isinstance(account, MemberAccount):
@@ -181,7 +181,7 @@ def get_accessible_member_accounts_for_userprofile(user_profile: UserProfile) ->
     if not tenant:
         return MemberAccount.objects.none()
 
-    if user_profile.permissions_level in ["admin", "owner"] or user_profile.is_club_owner:
+    if user_profile.is_system_admin or user_profile.is_club_owner or user_profile.can_manage_members:
         return MemberAccount.objects.filter(tenant=tenant, is_active=True)
 
     if hasattr(user_profile.contact, "member_account"):
@@ -199,7 +199,7 @@ def get_accessible_payment_history_for_userprofile(user_profile: UserProfile) ->
     )
     tenant = get_tenant_account_for_userprofile(user_profile)
 
-    if tenant and (user_profile.permissions_level in ["admin", "owner"] or user_profile.is_club_owner):
+    if tenant and (user_profile.is_system_admin or user_profile.is_club_owner or user_profile.can_manage_members):
         accessible_accounts.append(tenant)
 
     # Batch by model for efficiency
@@ -222,14 +222,14 @@ def userprofile_can_create_member_accounts(user_profile: UserProfile) -> bool:
     tenant = get_tenant_account_for_userprofile(user_profile)
     if not tenant:
         return False
-    if user_profile.permissions_level in ["admin", "owner"] or user_profile.is_club_owner:
+    if user_profile.is_system_admin or user_profile.is_club_owner or user_profile.can_manage_members:
         return tenant.can_add_member()
     return False
 
 
 def userprofile_can_manage_billing(user_profile: UserProfile) -> bool:
     return (
-        user_profile.permissions_level in ["admin", "owner"]
+        user_profile.is_system_admin
         or user_profile.is_club_owner
         or user_profile.can_manage_members
     )
@@ -239,7 +239,7 @@ def get_tenant_statistics_for_userprofile(
     user_profile: UserProfile,
 ) -> Optional[Dict[str, Union[int, float, Decimal, str]]]:
     tenant = get_tenant_account_for_userprofile(user_profile)
-    if not tenant or not (user_profile.permissions_level in ["admin", "owner"] or user_profile.is_club_owner):
+    if not tenant or not (user_profile.is_system_admin or user_profile.is_club_owner or user_profile.can_manage_members):
         return None
 
     ct = ContentType.objects.get_for_model(tenant.__class__)

@@ -105,14 +105,15 @@ class TenantAwarePeopleModelsTest(TestCase):
         self.user_profile1 = UserProfile.objects.create(
             user=self.user1,
             contact=self.contact1_t1,
-            permissions_level="admin",
-            is_club_owner=True
+            is_club_owner=True,
+            is_system_admin=True,
+            can_create_clubs=True,
+            can_manage_members=True,
         )
         
         self.user_profile2 = UserProfile.objects.create(
             user=self.user2,
             contact=self.contact1_t2,
-            permissions_level="member"
         )
 
     def test_contact_tenant_relationship(self):

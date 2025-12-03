@@ -230,7 +230,6 @@ class UserProfileServicesTestCase(TestCase):
         self.user_profile1 = UserProfile.objects.create(
             user=self.user1,
             contact=self.contact1,
-            permissions_level="member"
         )
 
         # Create tenant and member account
@@ -299,8 +298,10 @@ class UserProfileServicesTestCase(TestCase):
         self.assertFalse(can_create)
 
         # Admin should be able to create accounts
-        self.user_profile1.permissions_level = "admin"
-        self.user_profile1.save()
+        self.user_profile1.is_system_admin = True
+        self.user_profile1.can_create_clubs = True
+        self.user_profile1.can_manage_members = True
+        self.user_profile1.save(update_fields=['is_system_admin','can_create_clubs','can_manage_members'])
         can_create = acct_svc.userprofile_can_create_member_accounts(self.user_profile1)
         self.assertTrue(can_create)
 
@@ -311,8 +312,10 @@ class UserProfileServicesTestCase(TestCase):
         self.assertFalse(can_manage)
 
         # Admin should manage billing
-        self.user_profile1.permissions_level = "admin"
-        self.user_profile1.save()
+        self.user_profile1.is_system_admin = True
+        self.user_profile1.can_create_clubs = True
+        self.user_profile1.can_manage_members = True
+        self.user_profile1.save(update_fields=['is_system_admin','can_create_clubs','can_manage_members'])
         can_manage = acct_svc.userprofile_can_manage_billing(self.user_profile1)
         self.assertTrue(can_manage)
 
@@ -323,8 +326,10 @@ class UserProfileServicesTestCase(TestCase):
         self.assertIsNone(stats)
 
         # Admin should see statistics
-        self.user_profile1.permissions_level = "admin"
-        self.user_profile1.save()
+        self.user_profile1.is_system_admin = True
+        self.user_profile1.can_create_clubs = True
+        self.user_profile1.can_manage_members = True
+        self.user_profile1.save(update_fields=['is_system_admin','can_create_clubs','can_manage_members'])
         stats = acct_svc.get_tenant_statistics_for_userprofile(self.user_profile1)
         self.assertIsInstance(stats, dict)
         self.assertIn("member_count", stats)

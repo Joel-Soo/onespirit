@@ -77,7 +77,7 @@ class ClubRelatedManager(models.Manager):
                     login_user = UserProfile.objects.get(user=user)
 
                     # Check if user is superuser or has system-wide admin permissions
-                    if user.is_superuser or login_user.permissions_level == "admin":
+                    if user.is_superuser or login_user.is_system_admin:
                         # Superusers and system admins see all (within tenant scope)
                         pass
                     else:

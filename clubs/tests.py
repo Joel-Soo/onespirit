@@ -410,22 +410,23 @@ class ClubStaffFilteringTestCase(TestCase):
         self.user_profile1 = UserProfile.objects.create(
             user=self.user1,
             contact=self.contact1,
-            permissions_level="staff"
         )
 
         self.user2 = User.objects.create_user("staff2", "staff2@test.com")
         self.user_profile2 = UserProfile.objects.create(
             user=self.user2,
             contact=self.contact2,
-            permissions_level="staff"
         )
 
         self.user3 = User.objects.create_user("admin", "admin@test.com")
         self.user_profile3 = UserProfile.objects.create(
             user=self.user3,
             contact=self.contact3,
-            permissions_level="admin"
         )
+        self.user_profile3.is_system_admin = True
+        self.user_profile3.can_create_clubs = True
+        self.user_profile3.can_manage_members = True
+        self.user_profile3.save(update_fields=['is_system_admin','can_create_clubs','can_manage_members'])
 
         # Create staff assignments
         self.staff1_club1 = ClubStaff.objects.create(
@@ -578,7 +579,6 @@ class ClubStaffFilteringTestCase(TestCase):
         user_profile_no_clubs = UserProfile.objects.create(
             user=user_no_clubs,
             contact=contact_no_clubs,
-            permissions_level="staff"
         )
 
         # Set tenant context and no-clubs user context
@@ -682,15 +682,21 @@ class ClubStaffOrganizationUserTestCase(TestCase):
         self.user_profile1 = UserProfile.objects.create(
             user=self.django_user1,
             contact=self.contact1,
-            permissions_level="owner"
         )
+        self.user_profile1.is_club_owner = True
+        self.user_profile1.can_create_clubs = True
+        self.user_profile1.can_manage_members = True
+        self.user_profile1.save(update_fields=['is_club_owner','can_create_clubs','can_manage_members'])
 
         self.django_user2 = User.objects.create_user("admin", "admin@test.com")
         self.user_profile2 = UserProfile.objects.create(
             user=self.django_user2,
             contact=self.contact2,
-            permissions_level="admin"
         )
+        self.user_profile2.is_system_admin = True
+        self.user_profile2.can_create_clubs = True
+        self.user_profile2.can_manage_members = True
+        self.user_profile2.save(update_fields=['is_system_admin','can_create_clubs','can_manage_members'])
 
         # Create OrganizationUsers for the club (since Club inherits from Organization)
         from organizations.models import OrganizationUser
@@ -800,7 +806,6 @@ class ClubStaffOrganizationUserTestCase(TestCase):
         no_org_login = UserProfile.objects.create(
             user=no_org_user,
             contact=no_org_contact,
-            permissions_level="staff"
         )
 
         # Staff with organization admin
@@ -847,8 +852,11 @@ class ClubStaffOrganizationUserTestCase(TestCase):
         super_login = UserProfile.objects.create(
             user=superuser,
             contact=super_contact,
-            permissions_level="admin"
         )
+        super_login.is_system_admin = True
+        super_login.can_create_clubs = True
+        super_login.can_manage_members = True
+        super_login.save(update_fields=['is_system_admin','can_create_clubs','can_manage_members'])
 
         # Create additional users for different roles
         owner_user = User.objects.create_user("owner_test", "owner_test@test.com")
@@ -864,8 +872,11 @@ class ClubStaffOrganizationUserTestCase(TestCase):
         owner_login = UserProfile.objects.create(
             user=owner_user,
             contact=owner_contact,
-            permissions_level="owner"
         )
+        owner_login.is_club_owner = True
+        owner_login.can_create_clubs = True
+        owner_login.can_manage_members = True
+        owner_login.save(update_fields=['is_club_owner','can_create_clubs','can_manage_members'])
 
         admin_user = User.objects.create_user("admin_test", "admin_test@test.com")
         admin_contact = Contact.objects.create(
@@ -880,8 +891,11 @@ class ClubStaffOrganizationUserTestCase(TestCase):
         admin_login = UserProfile.objects.create(
             user=admin_user,
             contact=admin_contact,
-            permissions_level="admin"
         )
+        admin_login.is_system_admin = True
+        admin_login.can_create_clubs = True
+        admin_login.can_manage_members = True
+        admin_login.save(update_fields=['is_system_admin','can_create_clubs','can_manage_members'])
 
         instructor_user = User.objects.create_user("instructor_test", "instructor_test@test.com")
         instructor_contact = Contact.objects.create(
@@ -896,7 +910,6 @@ class ClubStaffOrganizationUserTestCase(TestCase):
         instructor_login = UserProfile.objects.create(
             user=instructor_user,
             contact=instructor_contact,
-            permissions_level="staff"
         )
 
         assistant_user = User.objects.create_user("assistant_test", "assistant_test@test.com")
@@ -912,7 +925,6 @@ class ClubStaffOrganizationUserTestCase(TestCase):
         assistant_login = UserProfile.objects.create(
             user=assistant_user,
             contact=assistant_contact,
-            permissions_level="staff"
         )
 
         # Test different hierarchy levels
@@ -976,8 +988,11 @@ class ClubStaffOrganizationUserTestCase(TestCase):
         owner_login = UserProfile.objects.create(
             user=owner_user,
             contact=owner_contact,
-            permissions_level="owner"
         )
+        owner_login.is_club_owner = True
+        owner_login.can_create_clubs = True
+        owner_login.can_manage_members = True
+        owner_login.save(update_fields=['is_club_owner','can_create_clubs','can_manage_members'])
 
         instructor_user = User.objects.create_user("instructor_manage", "instructor_manage@test.com")
         instructor_contact = Contact.objects.create(
@@ -992,7 +1007,6 @@ class ClubStaffOrganizationUserTestCase(TestCase):
         instructor_login = UserProfile.objects.create(
             user=instructor_user,
             contact=instructor_contact,
-            permissions_level="staff"
         )
 
         assistant_user = User.objects.create_user("assistant_manage", "assistant_manage@test.com")
@@ -1008,7 +1022,6 @@ class ClubStaffOrganizationUserTestCase(TestCase):
         assistant_login = UserProfile.objects.create(
             user=assistant_user,
             contact=assistant_contact,
-            permissions_level="staff"
         )
 
         # Create staff with different levels
@@ -1105,7 +1118,6 @@ class ClubStaffOrganizationUserTestCase(TestCase):
         test_login = UserProfile.objects.create(
             user=test_user,
             contact=test_contact,
-            permissions_level="staff"
         )
 
         staff_with_org = ClubStaff.objects.create(

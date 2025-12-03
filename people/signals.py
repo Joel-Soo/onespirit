@@ -83,9 +83,11 @@ def update_owner_permissions(sender, organization, old_owner, new_owner, **kwarg
                 user=old_owner, is_admin=True
             ).exclude(organization=organization)
             
-            if not other_admin_orgs.exists() and old_user_profile.permissions_level == 'admin':
-                old_user_profile.permissions_level = 'owner'  # Demote to regular owner
-                old_user_profile.save(update_fields=['permissions_level'])
+            if not other_admin_orgs.exists() and old_user_profile.is_system_admin:
+                # Demote system admin to regular owner
+                old_user_profile.is_system_admin = False
+                old_user_profile.is_club_owner = True
+                old_user_profile.save(update_fields=['is_system_admin','is_club_owner'])
         except UserProfile.DoesNotExist:
             pass
     
@@ -94,10 +96,10 @@ def update_owner_permissions(sender, organization, old_owner, new_owner, **kwarg
         try:
             new_user_profile = UserProfile.objects.get(user=new_owner)
             # Promote to admin level if not already
-            if new_user_profile.permissions_level not in ['admin']:
-                new_user_profile.permissions_level = 'admin'
+            if not new_user_profile.is_system_admin:
+                new_user_profile.is_system_admin = True
                 new_user_profile.is_club_owner = True
-                new_user_profile.save(update_fields=['permissions_level', 'is_club_owner'])
+                new_user_profile.save(update_fields=['is_system_admin','is_club_owner'])
         except UserProfile.DoesNotExist:
             pass
 
@@ -115,21 +117,22 @@ def sync_loginuser_permissions(sender, instance, created, **kwargs):
         user_profile = UserProfile.objects.get(user=instance.user)
         
         if instance.is_admin:
-            # Promote UserProfile to admin if they're org admin
-            if user_profile.permissions_level not in ['admin']:
-                user_profile.permissions_level = 'admin'
+            # Promote UserProfile to system admin if they're org admin
+            if not user_profile.is_system_admin:
+                user_profile.is_system_admin = True
                 user_profile.is_club_owner = True
-                user_profile.save(update_fields=['permissions_level', 'is_club_owner'])
+                user_profile.save(update_fields=['is_system_admin','is_club_owner'])
         else:
             # Check if user is admin in any other organizations
             is_admin_elsewhere = OrganizationUser.objects.filter(
                 user=instance.user, is_admin=True
             ).exclude(id=instance.id).exists()
             
-            if not is_admin_elsewhere and user_profile.permissions_level == 'admin':
-                # Demote from admin if not admin elsewhere
-                user_profile.permissions_level = 'owner'
-                user_profile.save(update_fields=['permissions_level'])
+            if not is_admin_elsewhere and user_profile.is_system_admin:
+                # Demote from system admin if not admin elsewhere
+                user_profile.is_system_admin = False
+                user_profile.is_club_owner = True
+                user_profile.save(update_fields=['is_system_admin','is_club_owner'])
                 
     except UserProfile.DoesNotExist:
         pass
