@@ -29,8 +29,8 @@ class ContactAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)  
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ['contact', 'user', 'permissions_level', 'is_club_owner', 'is_club_staff']
-    list_filter = ['permissions_level', 'is_club_owner', 'is_club_staff', 'can_create_clubs']
+    list_display = ['contact', 'user', 'is_system_admin', 'is_club_owner']
+    list_filter = ['is_system_admin', 'is_club_owner', 'can_create_clubs']
     search_fields = ['contact__first_name', 'contact__last_name', 'user__username']
     readonly_fields = ['created_at', 'updated_at', 'last_login_attempt']
     
@@ -39,7 +39,7 @@ class UserProfileAdmin(admin.ModelAdmin):
             'fields': ('user', 'contact')
         }),
         ('Permissions', {
-            'fields': ('permissions_level', 'is_club_owner', 'is_club_staff', 
+            'fields': ('is_system_admin', 'is_club_owner', 
                       'can_create_clubs', 'can_manage_members')
         }),
         ('Metadata', {

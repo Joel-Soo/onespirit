@@ -199,22 +199,6 @@ class UserProfile(models.Model):
     is_club_owner = models.BooleanField(
         default=False, help_text="Can own and fully manage clubs"
     )
-    is_club_staff = models.BooleanField(
-        default=False, help_text="Can assist with club management"
-    )
-
-    PERMISSION_CHOICES = [
-        ("member", "Member"),
-        ("staff", "Staff"),
-        ("owner", "Owner"),
-        ("admin", "Administrator"),
-    ]
-    permissions_level = models.CharField(
-        max_length=20,
-        choices=PERMISSION_CHOICES,
-        default="member",
-        help_text="General permission level for club operations",
-    )
 
     # Additional Fields for club management
     can_create_clubs = models.BooleanField(
@@ -233,9 +217,6 @@ class UserProfile(models.Model):
         verbose_name = "User Profile"
         verbose_name_plural = "User Profiles"
         indexes = [
-            models.Index(
-                fields=["permissions_level"], name="people_loginuser_perm_idx"
-            ),
             models.Index(fields=["is_club_owner"], name="people_loginuser_owner_idx"),
         ]
 
