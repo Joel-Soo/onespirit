@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Union
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import QuerySet, Sum
 
-from people.models import Contact, LoginUser
+from people.models import Contact, UserProfile
 from accounts.models import MemberAccount, PaymentHistory, TenantAccount, PaymentStatus
 
 
@@ -145,61 +145,61 @@ def get_account_summary(contact: Contact) -> Dict[str, object]:
     }
 
 
-# ----- LoginUser-centric services -----
+# ----- UserProfile-centric services -----
 
-def get_tenant_account_for_loginuser(login_user: LoginUser) -> Optional[TenantAccount]:
+def get_tenant_account_for_userprofile(user_profile: UserProfile) -> Optional[TenantAccount]:
     # If their contact has a member account, use its tenant
-    if hasattr(login_user.contact, "member_account") and login_user.contact.member_account:
-        return login_user.contact.member_account.tenant
+    if hasattr(user_profile.contact, "member_account") and user_profile.contact.member_account:
+        return user_profile.contact.member_account.tenant
 
-    tenants = get_tenant_accounts_for_contact(login_user.contact)
+    tenants = get_tenant_accounts_for_contact(user_profile.contact)
     return tenants[0] if tenants else None
 
 
-def loginuser_can_access_account(
-    login_user: LoginUser,
+def userprofile_can_access_account(
+    user_profile: UserProfile,
     account: Union[TenantAccount, MemberAccount],
 ) -> bool:
-    tenant = get_tenant_account_for_loginuser(login_user)
+    tenant = get_tenant_account_for_userprofile(user_profile)
     if not tenant:
         return False
 
-    if login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner():
+    if user_profile.is_system_admin or user_profile.is_club_owner() or user_profile.can_manage_members:
         if isinstance(account, TenantAccount):
             return account == tenant
         if isinstance(account, MemberAccount):
             return account.tenant == tenant
 
-    if hasattr(login_user.contact, "member_account"):
-        return login_user.contact.member_account == account
+    if hasattr(user_profile.contact, "member_account"):
+        return user_profile.contact.member_account == account
 
     return False
 
 
-def get_accessible_member_accounts_for_loginuser(login_user: LoginUser) -> QuerySet[MemberAccount]:
-    tenant = get_tenant_account_for_loginuser(login_user)
+def get_accessible_member_accounts_for_userprofile(user_profile: UserProfile) -> QuerySet[MemberAccount]:
+    tenant = get_tenant_account_for_userprofile(user_profile)
     if not tenant:
         return MemberAccount.objects.none()
 
-    if login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner():
+    if user_profile.is_system_admin or user_profile.is_club_owner() or user_profile.can_manage_members:
         return MemberAccount.objects.filter(tenant=tenant, is_active=True)
 
-    if hasattr(login_user.contact, "member_account"):
+    if hasattr(user_profile.contact, "member_account"):
         return MemberAccount.objects.filter(
-            id=login_user.contact.member_account.id, is_active=True
+            id=user_profile.contact.member_account.id, is_active=True
         )
 
     return MemberAccount.objects.none()
 
 
 
-def get_accessible_payment_history_for_loginuser(login_user: LoginUser) -> List[PaymentHistory]:
+def get_accessible_payment_history_for_userprofile(user_profile: UserProfile) -> List[PaymentHistory]:
     accessible_accounts: List[Union[TenantAccount, MemberAccount]] = list(
-        get_accessible_member_accounts_for_loginuser(login_user)
+        get_accessible_member_accounts_for_userprofile(user_profile)
     )
-    tenant = get_tenant_account_for_loginuser(login_user)
+    tenant = get_tenant_account_for_userprofile(user_profile)
 
-    if tenant and (login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner()):
+    if tenant and (user_profile.is_system_admin or user_profile.is_club_owner() or user_profile.can_manage_members):
         accessible_accounts.append(tenant)
 
     # Batch by model for efficiency
@@ -218,28 +218,28 @@ def get_accessible_payment_history_for_loginuser(login_user: LoginUser) -> List[
     return sorted(history, key=lambda p: p.payment_date, reverse=True)
 
 
-def loginuser_can_create_member_accounts(login_user: LoginUser) -> bool:
-    tenant = get_tenant_account_for_loginuser(login_user)
+def userprofile_can_create_member_accounts(user_profile: UserProfile) -> bool:
+    tenant = get_tenant_account_for_userprofile(user_profile)
     if not tenant:
         return False
-    if login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner():
+    if user_profile.is_system_admin or user_profile.is_club_owner() or user_profile.can_manage_members:
         return tenant.can_add_member()
     return False
 
 
-def loginuser_can_manage_billing(login_user: LoginUser) -> bool:
+def userprofile_can_manage_billing(user_profile: UserProfile) -> bool:
     return (
-        login_user.permissions_level in ["admin", "owner"]
-        or login_user.is_club_owner()
-        or login_user.can_manage_members
+        user_profile.is_system_admin
+        or user_profile.is_club_owner()
+        or user_profile.can_manage_members
     )
 
 
-def get_tenant_statistics_for_loginuser(
-    login_user: LoginUser,
+def get_tenant_statistics_for_userprofile(
+    user_profile: UserProfile,
 ) -> Optional[Dict[str, Union[int, float, Decimal, str]]]:
-    tenant = get_tenant_account_for_loginuser(login_user)
-    if not tenant or not (login_user.permissions_level in ["admin", "owner"] or login_user.is_club_owner()):
+    tenant = get_tenant_account_for_userprofile(user_profile)
+    if not tenant or not (user_profile.is_system_admin or user_profile.is_club_owner() or user_profile.can_manage_members):
         return None
 
     ct = ContentType.objects.get_for_model(tenant.__class__)

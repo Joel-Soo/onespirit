@@ -39,7 +39,7 @@ from accounts.models import (
     TenantAccount,
 )
 from clubs.models import Club, ClubMember, ClubStaff
-from people.models import Contact, LoginUser
+from people.models import Contact, UserProfile
 
 # Import organizations if available
 try:
@@ -366,27 +366,26 @@ class Command(BaseCommand):
 
                 # Determine permissions based on user type
                 if "admin" in user_key:
-                    permissions_level = "admin"
+                    is_system_admin = True
                     can_create_clubs = True
                     can_manage_members = True
                 elif "staff" in user_key:
-                    permissions_level = "staff"
+                    is_system_admin = False
                     can_create_clubs = True
                     can_manage_members = True
                 else:
-                    permissions_level = "member"
+                    is_system_admin = False
                     can_create_clubs = False
                     can_manage_members = False
 
-                login_user = LoginUser.objects.create(
+                user_profile = UserProfile.objects.create(
                     user=user,
                     contact=contact,
-                    is_club_staff="staff" in user_key or "admin" in user_key,
-                    permissions_level=permissions_level,
+                    is_system_admin=is_system_admin,
                     can_create_clubs=can_create_clubs,
                     can_manage_members=can_manage_members,
                 )
-                login_users.append(login_user)
+                login_users.append(user_profile)
 
         self.stdout.write(f"Created {len(login_users)} login users.")
         return login_users

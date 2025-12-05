@@ -70,14 +70,14 @@ class ClubRelatedManager(models.Manager):
                     # Skip user filtering if 'club' exists but isn't a ForeignKey relationship
                     return queryset
 
-                # Get LoginUser instance from Django User
+                # Get UserProfile instance from Django User
                 try:
-                    from people.models import LoginUser
+                    from people.models import UserProfile
 
-                    login_user = LoginUser.objects.get(user=user)
+                    user_profile = UserProfile.objects.get(user=user)
 
                     # Check if user is superuser or has system-wide admin permissions
-                    if user.is_superuser or login_user.permissions_level == "admin":
+                    if user.is_superuser or user_profile.is_system_admin:
                         # Superusers and system admins see all (within tenant scope)
                         pass
                     else:
@@ -85,7 +85,7 @@ class ClubRelatedManager(models.Manager):
                         # Use all_objects to avoid circular manager calls while staying DB-agnostic
                         user_club_ids = list(
                             ClubStaff.all_objects.filter(
-                                contact__login_user=login_user, is_active=True
+                                user=user_profile, is_active=True
                             ).values_list("club_id", flat=True)
                         )
 
@@ -95,8 +95,8 @@ class ClubRelatedManager(models.Manager):
                             # User has no club assignments: return empty queryset
                             queryset = queryset.none()
 
-                except LoginUser.DoesNotExist:
-                    # User has no LoginUser profile: return empty queryset
+                except UserProfile.DoesNotExist:
+                    # User has no UserProfile profile: return empty queryset
                     queryset = queryset.none()
 
             except FieldDoesNotExist:
@@ -214,9 +214,13 @@ class Club(Organization):
 
         # Social media handle validation (simple rule: should not start with '@')
         if self.instagram_handle and self.instagram_handle.startswith("@"):
-            raise ValidationError({"instagram_handle": "Handle should not start with '@'"})
+            raise ValidationError(
+                {"instagram_handle": "Handle should not start with '@'"}
+            )
         if self.twitter_handle and self.twitter_handle.startswith("@"):
-            raise ValidationError({"twitter_handle": "Handle should not start with '@'"})
+            raise ValidationError(
+                {"twitter_handle": "Handle should not start with '@'"}
+            )
 
         # Validate tenant quota (only if quota is set and positive)
         if not self.pk and getattr(self.tenant, "max_clubs", None):
@@ -252,7 +256,7 @@ class Club(Organization):
 class ClubStaff(models.Model):
     """
     Through model for managing club staff with roles and permissions.
-    Links LoginUser to Club with specific role assignments.
+    Links UserProfile to Club with specific role assignments.
     """
 
     ROLE_CHOICES = [
@@ -266,8 +270,8 @@ class ClubStaff(models.Model):
         Club, on_delete=models.CASCADE, related_name="staff_assignments"
     )
 
-    contact = models.ForeignKey(
-        "people.Contact", on_delete=models.CASCADE, related_name="club_assignments"
+    user = models.ForeignKey(
+        "people.UserProfile", on_delete=models.CASCADE, related_name="club_assignments"
     )
 
     organization_user = models.OneToOneField(
@@ -304,13 +308,13 @@ class ClubStaff(models.Model):
         db_table = "clubs_clubstaff"
         indexes = [
             models.Index(fields=["club", "is_active"]),
-            models.Index(fields=["contact", "is_active"]),
+            models.Index(fields=["user", "is_active"]),
             models.Index(fields=["role"]),
             models.Index(fields=["organization_user"]),
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=["club", "contact"], name="unique_staff_assignment_per_club"
+                fields=["club", "user"], name="unique_staff_assignment_per_club"
             ),
             # Note: organization_user already has unique constraint from OneToOneField
         ]
@@ -319,27 +323,24 @@ class ClubStaff(models.Model):
         ordering = ["role", "assigned_at"]
 
     def __str__(self):
-        return f"{self.contact.get_full_name()} - {self.get_role_display()} at {self.club}"
+        return f"{self.user.contact.get_full_name()} - {self.get_role_display()} at {self.club}"
 
     def clean(self):
         """Validate staff assignment"""
         super().clean()
 
-        # Ensure staff contact has login_user and can access club tenant
-        if not hasattr(self.contact, "login_user") or not self.contact.login_user:
-            raise ValidationError("Staff contact must have an associated login user")
-
-        if hasattr(self.contact.login_user, "can_access_tenant") and not self.contact.login_user.can_access_tenant(
+        # Ensure staff user can access club tenant
+        if hasattr(self.user, "can_access_tenant") and not self.user.can_access_tenant(
             self.club.tenant
         ):
             raise ValidationError("Staff user cannot access club tenant")
 
         # Validate OrganizationUser consistency if provided
         if self.organization_user:
-            # Ensure Django User matches between LoginUser and OrganizationUser
-            if self.contact.login_user.user != self.organization_user.user:
+            # Ensure Django User matches between UserProfile and OrganizationUser
+            if self.user.user != self.organization_user.user:
                 raise ValidationError(
-                    "OrganizationUser must belong to the same Django User as the LoginUser"
+                    "OrganizationUser must belong to the same Django User as the UserProfile"
                 )
 
             # Ensure Organization matches Club (since Club inherits from Organization)
@@ -380,7 +381,7 @@ class ClubStaff(models.Model):
 
     def get_permission_hierarchy_level(self):
         """Get the permission hierarchy level for this staff assignment."""
-        if self.contact.login_user.user.is_superuser:
+        if self.user.user.is_superuser:
             return 100  # Superuser
         if self.is_organization_admin():
             return 90  # Organization admin

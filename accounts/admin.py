@@ -10,7 +10,7 @@ class TenantAccountContactInline(admin.TabularInline):
     """Inline admin for TenantAccount-Contact relationships"""
     model = TenantAccountContact
     extra = 1
-    fields = ['contact', 'relationship_type', 'is_active']
+    fields = ['contact', 'role', 'is_active']
     autocomplete_fields = ['contact']
 
 
@@ -248,9 +248,9 @@ class PaymentHistoryAdmin(admin.ModelAdmin):
 class TenantAccountContactAdmin(admin.ModelAdmin):
     """Admin interface for TenantAccountContact through model"""
     list_display = [
-        'account', 'contact', 'relationship_type', 'is_active', 'added_date'
+        'account', 'contact', 'role', 'is_active', 'added_date'
     ]
-    list_filter = ['relationship_type', 'is_active', 'added_date']
+    list_filter = ['role', 'is_active', 'added_date']
     search_fields = [
         'account__tenant_name', 'contact__first_name', 
         'contact__last_name', 'contact__email'
