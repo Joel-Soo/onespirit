@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Contact, LoginUser
+from .models import Contact, UserProfile
 
 
 @admin.register(Contact)
@@ -27,10 +27,10 @@ class ContactAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(LoginUser)
-class LoginUserAdmin(admin.ModelAdmin):
-    list_display = ['contact', 'user', 'permissions_level', 'is_club_owner_display', 'is_club_staff']
-    list_filter = ['permissions_level', 'is_club_staff', 'can_create_clubs']
+@admin.register(UserProfile)  
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ['contact', 'user', 'is_system_admin', 'is_club_owner_display']
+    list_filter = ['is_system_admin', 'can_create_clubs', 'can_manage_members']
     search_fields = ['contact__first_name', 'contact__last_name', 'user__username']
     readonly_fields = ['is_club_owner_display', 'created_at', 'updated_at', 'last_login_attempt']
     
@@ -39,7 +39,7 @@ class LoginUserAdmin(admin.ModelAdmin):
             'fields': ('user', 'contact')
         }),
         ('Permissions', {
-            'fields': ('permissions_level', 'is_club_owner_display', 'is_club_staff',
+            'fields': ('is_system_admin', 'is_club_owner_display',
                       'can_create_clubs', 'can_manage_members')
         }),
         ('Metadata', {

@@ -12,7 +12,7 @@ from organizations.models import Organization
 
 from accounts.models import TenantAccount, MemberAccount
 from accounts.managers import set_current_tenant, get_current_tenant
-from people.models import Contact, LoginUser
+from people.models import Contact, UserProfile
 
 
 class TenantAwarePeopleModelsTest(TestCase):
@@ -102,16 +102,17 @@ class TenantAwarePeopleModelsTest(TestCase):
             password="testpass123"
         )
 
-        self.login_user1 = LoginUser.objects.create(
+        self.user_profile1 = UserProfile.objects.create(
             user=self.user1,
             contact=self.contact1_t1,
-            permissions_level="admin"
+            is_system_admin=True,
+            can_create_clubs=True,
+            can_manage_members=True,
         )
         
-        self.login_user2 = LoginUser.objects.create(
+        self.user_profile2 = UserProfile.objects.create(
             user=self.user2,
             contact=self.contact1_t2,
-            permissions_level="member"
         )
 
     def test_contact_tenant_relationship(self):
@@ -184,19 +185,19 @@ class TenantAwarePeopleModelsTest(TestCase):
         self.assertIn(self.contact1_t2, all_contacts)
 
     def test_login_user_can_access_tenant(self):
-        """Test LoginUser.can_access_tenant method"""
+        """Test UserProfile.can_access_tenant method"""
         # User should be able to access their own tenant
-        self.assertTrue(self.login_user1.can_access_tenant(self.tenant1))
-        self.assertFalse(self.login_user1.can_access_tenant(self.tenant2))
+        self.assertTrue(self.user_profile1.can_access_tenant(self.tenant1))
+        self.assertFalse(self.user_profile1.can_access_tenant(self.tenant2))
         
-        self.assertTrue(self.login_user2.can_access_tenant(self.tenant2))
-        self.assertFalse(self.login_user2.can_access_tenant(self.tenant1))
+        self.assertTrue(self.user_profile2.can_access_tenant(self.tenant2))
+        self.assertFalse(self.user_profile2.can_access_tenant(self.tenant1))
 
     def test_login_user_get_tenant_account(self):
-        """Test LoginUser.get_tenant_account method"""
+        """Test UserProfile.get_tenant_account method"""
         from accounts import services as acct_svc
-        self.assertEqual(acct_svc.get_tenant_account_for_loginuser(self.login_user1), self.tenant1)
-        self.assertEqual(acct_svc.get_tenant_account_for_loginuser(self.login_user2), self.tenant2)
+        self.assertEqual(acct_svc.get_tenant_account_for_userprofile(self.user_profile1), self.tenant1)
+        self.assertEqual(acct_svc.get_tenant_account_for_userprofile(self.user_profile2), self.tenant2)
 
     def test_login_user_tenant_scoped_club_management(self):
         """Test that club management respects tenant boundaries"""
@@ -208,14 +209,14 @@ class TenantAwarePeopleModelsTest(TestCase):
         club_t1 = MockClub(self.tenant1)
         club_t2 = MockClub(self.tenant2)
         
-        # login_user1 should be able to manage clubs in their tenant
-        self.assertTrue(self.login_user1.can_manage_club(club_t1))
+        # user_profile1 should be able to manage clubs in their tenant
+        self.assertTrue(self.user_profile1.can_manage_club(club_t1))
         # But not clubs in other tenants
-        self.assertFalse(self.login_user1.can_manage_club(club_t2))
+        self.assertFalse(self.user_profile1.can_manage_club(club_t2))
         
-        # login_user2 doesn't have club owner permissions, so can't manage any clubs
-        self.assertFalse(self.login_user2.can_manage_club(club_t1))
-        self.assertFalse(self.login_user2.can_manage_club(club_t2))
+        # user_profile2 doesn't have club owner permissions, so can't manage any clubs
+        self.assertFalse(self.user_profile2.can_manage_club(club_t1))
+        self.assertFalse(self.user_profile2.can_manage_club(club_t2))
 
     def test_contact_reverse_relationship(self):
         """Test reverse relationships from tenant to contacts"""
@@ -309,7 +310,7 @@ class TenantAwarePeopleModelsTest(TestCase):
         self.assertNotIn(self.contact2_t1, org1_contacts)
 
     def test_loginuser_organization_permissions(self):
-        """Test LoginUser organization permission methods"""
+        """Test UserProfile organization permission methods"""
         # Add another user as admin first to avoid auto-admin assignment
         dummy_admin_user = User.objects.create_user(
             username="admin_user",
@@ -321,12 +322,12 @@ class TenantAwarePeopleModelsTest(TestCase):
         # Now add our test user as regular member
         self.org1.add_user(self.user1, is_admin=False)
         
-        self.assertTrue(self.login_user1.can_access_organization(self.org1))
-        self.assertFalse(self.login_user1.is_organization_admin(self.org1))
-        self.assertFalse(self.login_user1.is_organization_owner(self.org1))
+        self.assertTrue(self.user_profile1.can_access_organization(self.org1))
+        self.assertFalse(self.user_profile1.is_organization_admin(self.org1))
+        self.assertFalse(self.user_profile1.is_organization_owner(self.org1))
         
         # Test permission level detection for member
-        self.assertEqual(self.login_user1.get_organization_permission_level(self.org1), 'member')
+        self.assertEqual(self.user_profile1.get_organization_permission_level(self.org1), 'member')
         
         # Now make them admin
         from organizations.models import OrganizationUser
@@ -335,8 +336,8 @@ class TenantAwarePeopleModelsTest(TestCase):
         org_user.save()
         
         # Test admin permissions
-        self.assertTrue(self.login_user1.is_organization_admin(self.org1))
-        self.assertEqual(self.login_user1.get_organization_permission_level(self.org1), 'admin')
+        self.assertTrue(self.user_profile1.is_organization_admin(self.org1))
+        self.assertEqual(self.user_profile1.get_organization_permission_level(self.org1), 'admin')
 
     def test_organization_signal_integration(self):
         """Test signal handlers sync Contact.organization"""
@@ -385,7 +386,7 @@ class TenantAwarePeopleModelsTest(TestCase):
         org_user = self.org1.add_user(self.user1)
         self.org1.change_owner(org_user)
         
-        self.assertTrue(self.login_user1.is_organization_owner(self.org1))
+        self.assertTrue(self.user_profile1.is_organization_owner(self.org1))
         
         # Organization owner should override club permissions for organization resources
         mock_club_in_org = type('MockClub', (), {
@@ -393,7 +394,7 @@ class TenantAwarePeopleModelsTest(TestCase):
             'organization': self.org1
         })()
         
-        self.assertTrue(self.login_user1.can_manage_club(mock_club_in_org))
+        self.assertTrue(self.user_profile1.can_manage_club(mock_club_in_org))
 
     def test_get_all_organizations_method(self):
         """Test Contact.get_all_organizations() returns all accessible orgs"""

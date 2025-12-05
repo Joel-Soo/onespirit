@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Optional
 
-from django.db.models import QuerySet
-
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -18,7 +16,6 @@ if TYPE_CHECKING:
     from typing import List
 
     from organizations.models import Organization
-    from clubs.models import Club
 
     from accounts.models import TenantAccount
 
@@ -177,39 +174,26 @@ class Contact(models.Model):
         return orgs
 
 
-class LoginUser(models.Model):
-    """LoginUser model for contacts that can login and manage club membership"""
+class UserProfile(models.Model):
+    """UserProfile model for contacts that can login and manage club membership"""
 
     # Relationship Fields
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
-        related_name="login_profile",
+        related_name="profile",
         help_text="Django User account for authentication",
     )
     contact = models.OneToOneField(
         Contact,
         on_delete=models.CASCADE,
-        related_name="login_user",
+        related_name="user_profile",
         help_text="Associated contact information",
     )
 
     # Permission Fields for club management
-    is_club_staff = models.BooleanField(
-        default=False, help_text="Can assist with club management"
-    )
-
-    PERMISSION_CHOICES = [
-        ("member", "Member"),
-        ("staff", "Staff"),
-        ("owner", "Owner"),
-        ("admin", "Administrator"),
-    ]
-    permissions_level = models.CharField(
-        max_length=20,
-        choices=PERMISSION_CHOICES,
-        default="member",
-        help_text="General permission level for club operations",
+    is_system_admin = models.BooleanField(
+        default=False, help_text="System administrator with full tenant-wide access"
     )
 
     # Additional Fields for club management
@@ -226,16 +210,16 @@ class LoginUser(models.Model):
     last_login_attempt = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        verbose_name = "Login User"
-        verbose_name_plural = "Login Users"
+        verbose_name = "User Profile"
+        verbose_name_plural = "User Profiles"
         indexes = [
             models.Index(
-                fields=["permissions_level"], name="people_loginuser_perm_idx"
+                fields=["is_system_admin"], name="people_userprofile_admin_idx"
             ),
         ]
 
     def __str__(self) -> str:
-        return f"{self.contact.get_full_name()} (Login User)"
+        return f"{self.contact.get_full_name()} (User Profile)"
 
     def is_club_owner(self, club=None) -> bool:
         """
@@ -246,29 +230,31 @@ class LoginUser(models.Model):
                   If None, checks if user is owner of ANY club.
 
         Returns:
-            True if the contact has club_assignments where role="owner",
+            True if the user has club_assignments where role="owner",
             regardless of is_active status.
         """
-        if not hasattr(self, 'contact') or not self.contact:
-            return False
-
-        if not hasattr(self.contact, 'club_assignments'):
+        if not hasattr(self, "club_assignments"):
             return False
 
         # Use optimized query with select_related for single club check
-        queryset = self.contact.club_assignments.select_related('club').filter(role="owner")
+        queryset = self.club_assignments.select_related("club").filter(role="owner")
 
         if club is not None:
-            queryset = queryset.filter(club=club)
+            # Handle both real Club objects and mock objects
+            if hasattr(club, "pk") and club.pk is not None:
+                queryset = queryset.filter(club=club)
+            else:
+                # Mock object without pk - can't query database
+                return False
 
         return queryset.exists()
 
     def has_club_permissions(self) -> bool:
         """Check if user has any club management permissions"""
         return (
-            self.is_club_owner()
-            or self.is_club_staff
-            or self.permissions_level in ["owner", "admin"]
+            self.is_club_owner()  # Has club-specific ownership via ClubStaff
+            or self.is_system_admin  # System-wide admin access
+            or self.can_manage_members  # Can manage members globally
         )
 
     def can_manage_club(self, club: Any = None) -> bool:
@@ -286,131 +272,40 @@ class LoginUser(models.Model):
             if org_permission in ["owner", "admin"]:
                 return True
 
-        if self.is_club_owner(club) or self.permissions_level == "admin":
+        if self.is_club_owner(club) or self.is_system_admin:
             return True
         # Future implementation will check club-specific permissions
         return False
 
-    def get_managed_clubs(self, active_only: bool = True) -> QuerySet[Club]:
-        """
-        Return queryset of clubs this user can manage.
+    def get_managed_clubs(self):
+        """Return queryset of clubs this user can manage.
 
-        Args:
-            active_only: If True, only return clubs where the user has active staff assignments.
-                        Default is True to match typical permission checking patterns.
-
-        Returns:
-            QuerySet of Club objects where the user has staff assignments.
-            Returns all clubs if user is a system admin (permissions_level == "admin").
+        System admins manage all clubs in their tenant; regular users manage clubs
+        where they have active staff assignments.
         """
-        # Safe runtime import - no circular dependency risk
         from clubs.models import Club
 
-        if not hasattr(self, 'contact') or not self.contact:
-            return Club.objects.none()
-
         # System admins can manage all clubs in their tenant
-        if self.permissions_level == "admin":
-            return Club.objects.select_related('tenant', 'organization').filter(
+        if self.is_system_admin:
+            return Club.objects.select_related("tenant", "organization").filter(
                 tenant=self.contact.tenant
             )
 
-        # Use optimized query with joins instead of separate queries
-        queryset = Club.objects.select_related(
-            'tenant', 'organization'
-        ).filter(
-            staff_assignments__contact=self.contact
+        # Regular users: clubs where they have active staff assignments
+        return (
+            Club.objects.select_related("tenant", "organization")
+            .filter(staff_assignments__user=self, staff_assignments__is_active=True)
+            .distinct()
         )
 
-        if active_only:
-            queryset = queryset.filter(staff_assignments__is_active=True)
-
-        return queryset.distinct()
-
-    @classmethod
-    def prefetch_club_data(cls, queryset: QuerySet) -> QuerySet:
-        """
-        Prefetch related club data for efficient querying of LoginUser instances.
-        
-        Args:
-            queryset: QuerySet of LoginUser objects
-            
-        Returns:
-            QuerySet with optimized prefetches for club-related operations
-        """
-        return queryset.select_related(
-            'contact', 'contact__tenant', 'contact__organization', 'user'
-        ).prefetch_related(
-            'contact__club_assignments__club',
-            'contact__club_assignments__club__tenant',
-            'contact__club_assignments__club__organization'
-        )
-
-    @classmethod
-    def prefetch_organization_data(cls, queryset: QuerySet) -> QuerySet:
-        """
-        Prefetch related organization data for efficient querying.
-        
-        Args:
-            queryset: QuerySet of LoginUser objects
-            
-        Returns:
-            QuerySet with optimized prefetches for organization-related operations
-        """
-        return queryset.select_related(
-            'contact', 'contact__organization', 'user'
-        ).prefetch_related(
-            'user__organizations_organizationuser__organization',
-            'user__organizations_organizationowner__organization',
-        )
-
-    def get_owned_clubs(self) -> QuerySet[Club]:
-        """
-        Get clubs owned by this user with optimized query.
-        
-        Returns:
-            QuerySet of Club objects where this user is an owner
-        """
-        # Safe runtime import - no circular dependency risk
-        from clubs.models import Club
-        
-        if not hasattr(self, 'contact') or not self.contact:
-            return Club.objects.none()
-            
-        return Club.objects.select_related(
-            'tenant', 'organization'
-        ).filter(
-            staff_assignments__contact=self.contact,
-            staff_assignments__role='owner'
-        ).distinct()
-
-    def get_staff_clubs(self, role: str = None) -> QuerySet[Club]:
-        """
-        Get clubs where user has staff assignments with optimized query.
-        
-        Args:
-            role: Optional role filter ('owner', 'manager', etc.)
-            
-        Returns:
-            QuerySet of Club objects where user has staff assignments
-        """
-        # Safe runtime import - no circular dependency risk
-        from clubs.models import Club
-        
-        if not hasattr(self, 'contact') or not self.contact:
-            return Club.objects.none()
-            
-        queryset = Club.objects.select_related(
-            'tenant', 'organization'
-        ).filter(
-            staff_assignments__contact=self.contact,
-            staff_assignments__is_active=True
-        )
-        
-        if role:
-            queryset = queryset.filter(staff_assignments__role=role)
-            
-        return queryset.distinct()
+    def get_club_permissions_summary(self) -> dict:
+        """Return a summary of the user's club-related permissions."""
+        return {
+            "is_admin": self.is_system_admin,
+            "can_create_clubs": self.can_create_clubs,
+            "can_manage_members": self.can_manage_members,
+            "is_club_owner": self.is_club_owner(),
+        }
 
     def can_access_organization(self, organization: Organization) -> bool:
         """Check if user can access organization"""
@@ -445,13 +340,15 @@ class LoginUser(models.Model):
 
         user = self.user
         # Use select_related to avoid N+1 queries
-        org_users = OrganizationUser.objects.select_related('organization').filter(user=user)
+        org_users = OrganizationUser.objects.select_related("organization").filter(
+            user=user
+        )
         organizations = [org_user.organization for org_user in org_users]
-        
+
         # Also include direct organization membership through Contact
         if self.contact.organization and self.contact.organization not in organizations:
             organizations.append(self.contact.organization)
-            
+
         return organizations
 
     def get_organization_permission_level(
@@ -477,56 +374,58 @@ class LoginUser(models.Model):
     def get_club_permissions_summary(self) -> dict:
         """
         Get comprehensive summary of user's club permissions with optimized queries.
-        
+
         Returns:
             Dictionary containing permission summary with pre-fetched data
         """
         # Safe runtime import - no circular dependency risk
         from clubs.models import Club
-        
-        if not hasattr(self, 'contact') or not self.contact:
+
+        if not hasattr(self, "contact") or not self.contact:
             return {
-                'is_admin': self.permissions_level == 'admin',
-                'owned_clubs': [],
-                'managed_clubs': [],
-                'all_clubs': [],
-                'can_create_clubs': self.can_create_clubs,
-                'can_manage_members': self.can_manage_members,
+                "is_admin": self.is_system_admin,
+                "owned_clubs": [],
+                "managed_clubs": [],
+                "all_clubs": [],
+                "can_create_clubs": self.can_create_clubs,
+                "can_manage_members": self.can_manage_members,
             }
-        
+
         # Get all clubs with staff assignments in one optimized query
-        clubs_with_assignments = Club.objects.select_related(
-            'tenant', 'organization'
-        ).prefetch_related(
-            'staff_assignments'
-        ).filter(
-            staff_assignments__contact=self.contact,
-            staff_assignments__is_active=True
-        ).distinct()
-        
+        clubs_with_assignments = (
+            Club.objects.select_related("tenant", "organization")
+            .prefetch_related("staff_assignments")
+            .filter(staff_assignments__user=self, staff_assignments__is_active=True)
+            .distinct()
+        )
+
         owned_clubs = []
         managed_clubs = []
-        
+
         for club in clubs_with_assignments:
             # Check assignments for this club
             user_assignments = [
-                assignment for assignment in club.staff_assignments.all() 
-                if assignment.contact == self.contact and assignment.is_active
+                assignment
+                for assignment in club.staff_assignments.all()
+                if assignment.user == self and assignment.is_active
             ]
-            
-            if any(assignment.role == 'owner' for assignment in user_assignments):
+
+            if any(assignment.role == "owner" for assignment in user_assignments):
                 owned_clubs.append(club)
-            
-            if any(assignment.role in ['owner', 'manager'] for assignment in user_assignments):
+
+            if any(
+                assignment.role in ["owner", "manager"]
+                for assignment in user_assignments
+            ):
                 managed_clubs.append(club)
-        
+
         return {
-            'is_admin': self.permissions_level == 'admin',
-            'owned_clubs': owned_clubs,
-            'managed_clubs': managed_clubs,
-            'all_clubs': list(clubs_with_assignments),
-            'can_create_clubs': self.can_create_clubs,
-            'can_manage_members': self.can_manage_members,
+            "is_admin": self.is_system_admin,
+            "owned_clubs": owned_clubs,
+            "managed_clubs": managed_clubs,
+            "all_clubs": list(clubs_with_assignments),
+            "can_create_clubs": self.can_create_clubs,
+            "can_manage_members": self.can_manage_members,
         }
 
     def can_access_tenant(self, tenant: TenantAccount) -> bool:
@@ -542,37 +441,32 @@ class LoginUser(models.Model):
 
         if not self.contact_id:
             raise ValidationError(
-                {"contact": "LoginUser must be associated with a Contact"}
+                {"contact": "UserProfile must be associated with a Contact"}
             )
 
         # Ensure permission consistency
-        # Check if user is a club owner via ClubStaff assignments
-        if self.is_club_owner() and self.permissions_level not in ["owner", "admin"]:
-            raise ValidationError(
-                "Club owners must have permissions_level of 'owner' or 'admin'"
-            )
-
-        if self.permissions_level == "admin":
+        # System admins automatically get all capabilities
+        if self.is_system_admin:
             self.can_create_clubs = True
             self.can_manage_members = True
 
 
-# Signal handlers for LoginUser
+# Signal handlers for UserProfile
 @receiver(post_save, sender=User)
-def create_login_user_profile(
+def create_user_profile(
     sender: type[User], instance: User, created: bool, **kwargs: Any
 ) -> None:
-    """Create LoginUser profile when User is created (optional)"""
+    """Create UserProfile profile when User is created (optional)"""
     # This will be called when creating User accounts
     # Implementation can be added later when user registration is implemented
     pass
 
 
-@receiver(post_save, sender=LoginUser)
+@receiver(post_save, sender=UserProfile)
 def sync_user_permissions(
-    sender: type[LoginUser], instance: LoginUser, **kwargs: Any
+    sender: type[UserProfile], instance: UserProfile, **kwargs: Any
 ) -> None:
-    """Sync Django User permissions with LoginUser permissions"""
+    """Sync Django User permissions with UserProfile permissions"""
     user = instance.user
 
     # Set Django User active status based on Contact active status
@@ -580,7 +474,7 @@ def sync_user_permissions(
         user.is_active = instance.contact.is_active
 
     # Set Django staff status for club owners/admins
-    if instance.is_club_owner() or instance.permissions_level in ["admin"]:
+    if instance.is_club_owner() or instance.is_system_admin:
         user.is_staff = True
 
     user.save(update_fields=["is_active", "is_staff"])

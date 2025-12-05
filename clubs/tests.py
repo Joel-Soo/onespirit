@@ -1,11 +1,13 @@
-from django.test import TestCase
-from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.test import TestCase
 from django.utils import timezone
-from accounts.models import TenantAccount, MemberAccount
-from people.models import Contact, LoginUser
 from organizations.models import Organization
-from .models import Club, ClubStaff, ClubMember, ClubAffiliation
+
+from accounts.models import MemberAccount, TenantAccount
+from people.models import Contact, UserProfile
+
+from .models import Club, ClubAffiliation, ClubMember, ClubStaff
 
 
 class ClubModelTestCase(TestCase):
@@ -15,7 +17,7 @@ class ClubModelTestCase(TestCase):
             tenant_name="Test Martial Arts",
             tenant_slug="test-martial-arts",
             billing_email="billing@test.com",
-            subscription_start_date=timezone.now().date()
+            subscription_start_date=timezone.now().date(),
         )
 
         # Create test contact
@@ -26,7 +28,7 @@ class ClubModelTestCase(TestCase):
             date_of_birth="1980-01-01",
             address="123 Test St",
             mobile_number="123-456-7890",
-            tenant=self.tenant
+            tenant=self.tenant,
         )
 
         # Set contact as primary contact for tenant
@@ -39,7 +41,7 @@ class ClubModelTestCase(TestCase):
             name="Test Dojo",
             slug="test-dojo",
             tenant=self.tenant,
-            description="Test martial arts club"
+            description="Test martial arts club",
         )
 
         # Test inheritance properties
@@ -53,18 +55,10 @@ class ClubModelTestCase(TestCase):
         """Test tenant club quota is enforced"""
         # Create max_clubs (5) clubs
         for i in range(5):
-            Club.objects.create(
-                name=f"Club {i}",
-                slug=f"club-{i}",
-                tenant=self.tenant
-            )
+            Club.objects.create(name=f"Club {i}", slug=f"club-{i}", tenant=self.tenant)
 
         # Attempt to create 6th club should fail
-        club6 = Club(
-            name="Club 6",
-            slug="club-6",
-            tenant=self.tenant
-        )
+        club6 = Club(name="Club 6", slug="club-6", tenant=self.tenant)
 
         with self.assertRaises(ValidationError):
             club6.full_clean()
@@ -72,9 +66,7 @@ class ClubModelTestCase(TestCase):
     def test_club_member_relationship_via_contact(self):
         """Test that club members are tracked via Contact.organization relationship"""
         club = Club.objects.create(
-            name="Test Club",
-            slug="test-club",
-            tenant=self.tenant
+            name="Test Club", slug="test-club", tenant=self.tenant
         )
 
         # Link contact to club organization
@@ -87,19 +79,13 @@ class ClubModelTestCase(TestCase):
     def test_club_staff_permissions(self):
         """Test club staff role permissions"""
         user = User.objects.create_user("teststaff", "staff@test.com")
-        login_user = LoginUser.objects.create(user=user, contact=self.contact)
+        user_profile = UserProfile.objects.create(user=user, contact=self.contact)
 
         club = Club.objects.create(
-            name="Test Club",
-            slug="test-club",
-            tenant=self.tenant
+            name="Test Club", slug="test-club", tenant=self.tenant
         )
 
-        staff = ClubStaff.objects.create(
-            club=club,
-            user=login_user,
-            role='owner'
-        )
+        staff = ClubStaff.objects.create(club=club, user=user_profile, role="owner")
 
         # Owner role should auto-set permissions
         self.assertTrue(staff.can_manage_members)
@@ -109,9 +95,7 @@ class ClubModelTestCase(TestCase):
     def test_club_member_account_integration(self):
         """Test ClubMember through model works with MemberAccount"""
         club = Club.objects.create(
-            name="Test Club",
-            slug="test-club",
-            tenant=self.tenant
+            name="Test Club", slug="test-club", tenant=self.tenant
         )
 
         member_account = MemberAccount.objects.create(
@@ -120,13 +104,11 @@ class ClubModelTestCase(TestCase):
             primary_contact=self.contact,
             billing_email="member@test.com",
             membership_number="TEST001",
-            membership_start_date=timezone.now().date()
+            membership_start_date=timezone.now().date(),
         )
 
         club_member = ClubMember.objects.create(
-            club=club,
-            member_account=member_account,
-            status='active'
+            club=club, member_account=member_account, status="active"
         )
 
         # Test relationship
@@ -137,15 +119,11 @@ class ClubModelTestCase(TestCase):
     def test_club_affiliation_prevents_self_reference(self):
         """Test that clubs cannot affiliate with themselves"""
         club = Club.objects.create(
-            name="Test Club",
-            slug="test-club",
-            tenant=self.tenant
+            name="Test Club", slug="test-club", tenant=self.tenant
         )
 
         affiliation = ClubAffiliation(
-            club_primary=club,
-            club_secondary=club,
-            affiliation_type='partner'
+            club_primary=club, club_secondary=club, affiliation_type="partner"
         )
 
         with self.assertRaises(ValidationError):
@@ -158,7 +136,7 @@ class ClubModelTestCase(TestCase):
             slug="test-club",
             tenant=self.tenant,
             instagram_handle="@invalid_handle",  # Should not start with @
-            twitter_handle="@also_invalid"       # Should not start with @
+            twitter_handle="@also_invalid",  # Should not start with @
         )
 
         with self.assertRaises(ValidationError):
@@ -172,27 +150,23 @@ class ClubQueryTestCase(TestCase):
             tenant_name="Tenant 1",
             tenant_slug="tenant-1",
             billing_email="billing1@test.com",
-            subscription_start_date=timezone.now().date()
+            subscription_start_date=timezone.now().date(),
         )
 
         self.tenant2 = TenantAccount.objects.create(
             tenant_name="Tenant 2",
             tenant_slug="tenant-2",
             billing_email="billing2@test.com",
-            subscription_start_date=timezone.now().date()
+            subscription_start_date=timezone.now().date(),
         )
 
         # Create clubs for each tenant
         self.club1 = Club.objects.create(
-            name="Club 1",
-            slug="club-1",
-            tenant=self.tenant1
+            name="Club 1", slug="club-1", tenant=self.tenant1
         )
 
         self.club2 = Club.objects.create(
-            name="Club 2",
-            slug="club-2",
-            tenant=self.tenant2
+            name="Club 2", slug="club-2", tenant=self.tenant2
         )
 
     def test_club_string_representation(self):
@@ -214,14 +188,14 @@ class ClubTenantIsolationTestCase(TestCase):
             tenant_name="Tenant 1",
             tenant_slug="tenant-1",
             billing_email="billing1@test.com",
-            subscription_start_date=timezone.now().date()
+            subscription_start_date=timezone.now().date(),
         )
 
         self.tenant2 = TenantAccount.objects.create(
             tenant_name="Tenant 2",
             tenant_slug="tenant-2",
             billing_email="billing2@test.com",
-            subscription_start_date=timezone.now().date()
+            subscription_start_date=timezone.now().date(),
         )
 
         # Create contacts for each tenant
@@ -232,7 +206,7 @@ class ClubTenantIsolationTestCase(TestCase):
             date_of_birth="1980-01-01",
             address="123 Test St",
             mobile_number="123-456-7890",
-            tenant=self.tenant1
+            tenant=self.tenant1,
         )
 
         self.contact2 = Contact.objects.create(
@@ -242,40 +216,36 @@ class ClubTenantIsolationTestCase(TestCase):
             date_of_birth="1981-01-01",
             address="456 Test Ave",
             mobile_number="987-654-3210",
-            tenant=self.tenant2
+            tenant=self.tenant2,
         )
 
         # Create clubs for each tenant
         self.club1 = Club.objects.create(
-            name="Club 1",
-            slug="club-1",
-            tenant=self.tenant1
+            name="Club 1", slug="club-1", tenant=self.tenant1
         )
 
         self.club2 = Club.objects.create(
-            name="Club 2",
-            slug="club-2",
-            tenant=self.tenant2
+            name="Club 2", slug="club-2", tenant=self.tenant2
         )
 
         # Create users and staff assignments
         user1 = User.objects.create_user("staff1", "staff1@test.com")
-        self.login_user1 = LoginUser.objects.create(user=user1, contact=self.contact1)
+        self.user_profile1 = UserProfile.objects.create(
+            user=user1, contact=self.contact1
+        )
 
         user2 = User.objects.create_user("staff2", "staff2@test.com")
-        self.login_user2 = LoginUser.objects.create(user=user2, contact=self.contact2)
+        self.user_profile2 = UserProfile.objects.create(
+            user=user2, contact=self.contact2
+        )
 
         # Create staff assignments
         self.staff1 = ClubStaff.objects.create(
-            club=self.club1,
-            user=self.login_user1,
-            role='instructor'
+            club=self.club1, user=self.user_profile1, role="instructor"
         )
 
         self.staff2 = ClubStaff.objects.create(
-            club=self.club2,
-            user=self.login_user2,
-            role='admin'
+            club=self.club2, user=self.user_profile2, role="admin"
         )
 
     def test_club_staff_tenant_isolation_without_context(self):
@@ -313,14 +283,12 @@ class ClubTenantIsolationTestCase(TestCase):
 
         # Create same-tenant affiliation (cross-tenant affiliations are now disallowed)
         club2_tenant1 = Club.objects.create(
-            name="Club 2 - T1",
-            slug="club-2-t1",
-            tenant=self.tenant1
+            name="Club 2 - T1", slug="club-2-t1", tenant=self.tenant1
         )
         affiliation = ClubAffiliation.objects.create(
             club_primary=self.club1,
             club_secondary=club2_tenant1,
-            affiliation_type='partner'
+            affiliation_type="partner",
         )
 
         # Set tenant 1 context - should see affiliation since club_primary is in tenant1
@@ -345,14 +313,14 @@ class ClubStaffFilteringTestCase(TestCase):
             tenant_name="Tenant 1",
             tenant_slug="tenant-1",
             billing_email="billing1@test.com",
-            subscription_start_date=timezone.now().date()
+            subscription_start_date=timezone.now().date(),
         )
 
         self.tenant2 = TenantAccount.objects.create(
             tenant_name="Tenant 2",
             tenant_slug="tenant-2",
             billing_email="billing2@test.com",
-            subscription_start_date=timezone.now().date()
+            subscription_start_date=timezone.now().date(),
         )
 
         # Create contacts for each tenant
@@ -363,7 +331,7 @@ class ClubStaffFilteringTestCase(TestCase):
             date_of_birth="1980-01-01",
             address="123 Test St",
             mobile_number="123-456-7890",
-            tenant=self.tenant1
+            tenant=self.tenant1,
         )
 
         self.contact2 = Contact.objects.create(
@@ -373,7 +341,7 @@ class ClubStaffFilteringTestCase(TestCase):
             date_of_birth="1981-01-01",
             address="456 Test Ave",
             mobile_number="987-654-3210",
-            tenant=self.tenant1
+            tenant=self.tenant1,
         )
 
         self.contact3 = Contact.objects.create(
@@ -383,78 +351,70 @@ class ClubStaffFilteringTestCase(TestCase):
             date_of_birth="1975-01-01",
             address="789 Admin St",
             mobile_number="555-123-4567",
-            tenant=self.tenant1
+            tenant=self.tenant1,
         )
 
         # Create clubs
         self.club1 = Club.objects.create(
-            name="Club 1",
-            slug="club-1",
-            tenant=self.tenant1
+            name="Club 1", slug="club-1", tenant=self.tenant1
         )
 
         self.club2 = Club.objects.create(
-            name="Club 2",
-            slug="club-2",
-            tenant=self.tenant1
+            name="Club 2", slug="club-2", tenant=self.tenant1
         )
 
         self.club3 = Club.objects.create(
-            name="Club 3",
-            slug="club-3",
-            tenant=self.tenant2
+            name="Club 3", slug="club-3", tenant=self.tenant2
         )
 
         # Create users and login users
         self.user1 = User.objects.create_user("staff1", "staff1@test.com")
-        self.login_user1 = LoginUser.objects.create(
+        self.user_profile1 = UserProfile.objects.create(
             user=self.user1,
             contact=self.contact1,
-            permissions_level="staff"
         )
 
         self.user2 = User.objects.create_user("staff2", "staff2@test.com")
-        self.login_user2 = LoginUser.objects.create(
+        self.user_profile2 = UserProfile.objects.create(
             user=self.user2,
             contact=self.contact2,
-            permissions_level="staff"
         )
 
         self.user3 = User.objects.create_user("admin", "admin@test.com")
-        self.login_user3 = LoginUser.objects.create(
+        self.user_profile3 = UserProfile.objects.create(
             user=self.user3,
             contact=self.contact3,
-            permissions_level="admin"
+        )
+        self.user_profile3.is_system_admin = True
+        self.user_profile3.can_create_clubs = True
+        self.user_profile3.can_manage_members = True
+        self.user_profile3.save(
+            update_fields=["is_system_admin", "can_create_clubs", "can_manage_members"]
         )
 
         # Create staff assignments
         self.staff1_club1 = ClubStaff.objects.create(
-            club=self.club1,
-            user=self.login_user1,
-            role='instructor'
+            club=self.club1, user=self.user_profile1, role="instructor"
         )
 
         self.staff2_club2 = ClubStaff.objects.create(
-            club=self.club2,
-            user=self.login_user2,
-            role='instructor'
+            club=self.club2, user=self.user_profile2, role="instructor"
         )
 
         # Create some club members
         from accounts.models import MemberAccount
+
         self.member_account1 = MemberAccount.objects.create(
             tenant=self.tenant1,
             member_contact=self.contact1,
             primary_contact=self.contact1,
             billing_email="member1@test.com",
             membership_number="MEM001",
-            membership_start_date=timezone.now().date()
+            membership_start_date=timezone.now().date(),
         )
 
         self.club_member1 = ClubMember.objects.create(
-            club=self.club1,
-            member_account=self.member_account1,
-            status='active'
+            club=self.club1, member_account=self.member_account1, status="active"
         )
 
         self.member_account2 = MemberAccount.objects.create(
@@ -463,19 +423,17 @@ class ClubStaffFilteringTestCase(TestCase):
             primary_contact=self.contact2,
             billing_email="member2@test.com",
             membership_number="MEM002",
-            membership_start_date=timezone.now().date()
+            membership_start_date=timezone.now().date(),
         )
 
         self.club_member2 = ClubMember.objects.create(
-            club=self.club2,
-            member_account=self.member_account2,
-            status='active'
+            club=self.club2, member_account=self.member_account2, status="active"
         )
 
     def test_club_staff_filtering_without_user_context(self):
         """Test that without user context, staff can see all club entities (within tenant)"""
-        from clubs.models import set_current_user
         from accounts.managers import set_current_tenant
+        from clubs.models import set_current_user
 
         # Set tenant context but no user context
         set_current_tenant(self.tenant1)
@@ -491,8 +449,8 @@ class ClubStaffFilteringTestCase(TestCase):
 
     def test_club_staff_filtering_with_regular_user_context(self):
         """Test that regular staff users only see entities from their assigned clubs"""
-        from clubs.models import set_current_user
         from accounts.managers import set_current_tenant
+        from clubs.models import set_current_user
 
         # Set tenant context and user1 context (staff for club1 only)
         set_current_tenant(self.tenant1)
@@ -523,8 +481,8 @@ class ClubStaffFilteringTestCase(TestCase):
 
     def test_club_staff_filtering_with_admin_user_context(self):
         """Test that admin users see all entities within tenant (no club restrictions)"""
-        from clubs.models import set_current_user
         from accounts.managers import set_current_tenant
+        from clubs.models import set_current_user
 
         # Set tenant context and admin user context
         set_current_tenant(self.tenant1)
@@ -540,8 +498,8 @@ class ClubStaffFilteringTestCase(TestCase):
 
     def test_club_staff_filtering_with_superuser_context(self):
         """Test that superusers see all entities within tenant (no club restrictions)"""
-        from clubs.models import set_current_user
         from accounts.managers import set_current_tenant
+        from clubs.models import set_current_user
 
         # Make user1 a superuser
         self.user1.is_superuser = True
@@ -561,8 +519,8 @@ class ClubStaffFilteringTestCase(TestCase):
 
     def test_club_staff_filtering_user_without_club_assignments(self):
         """Test that users without club assignments see no entities"""
-        from clubs.models import set_current_user
         from accounts.managers import set_current_tenant
+        from clubs.models import set_current_user
 
         # Create a user with no club assignments
         user_no_clubs = User.objects.create_user("noclub", "noclub@test.com")
@@ -573,12 +531,11 @@ class ClubStaffFilteringTestCase(TestCase):
             date_of_birth="1990-01-01",
             address="999 No Club St",
             mobile_number="999-999-9999",
-            tenant=self.tenant1
+            tenant=self.tenant1,
         )
-        login_user_no_clubs = LoginUser.objects.create(
+        user_profile_no_clubs = UserProfile.objects.create(
             user=user_no_clubs,
             contact=contact_no_clubs,
-            permissions_level="staff"
         )
 
         # Set tenant context and no-clubs user context
@@ -594,29 +551,29 @@ class ClubStaffFilteringTestCase(TestCase):
         self.assertEqual(no_members.count(), 0)
 
     def test_club_staff_filtering_user_without_login_profile(self):
-        """Test that Django users without LoginUser profiles see no entities"""
-        from clubs.models import set_current_user
+        """Test that Django users without UserProfile profiles see no entities"""
         from accounts.managers import set_current_tenant
+        from clubs.models import set_current_user
 
-        # Create a Django user without LoginUser profile
+        # Create a Django user without UserProfile profile
         user_no_profile = User.objects.create_user("noprofile", "noprofile@test.com")
 
         # Set tenant context and no-profile user context
         set_current_tenant(self.tenant1)
         set_current_user(user_no_profile)
 
-        # Should see no staff (user has no LoginUser profile)
+        # Should see no staff (user has no UserProfile profile)
         no_staff = ClubStaff.objects.all()
         self.assertEqual(no_staff.count(), 0)
 
-        # Should see no members (user has no LoginUser profile)
+        # Should see no members (user has no UserProfile profile)
         no_members = ClubMember.objects.all()
         self.assertEqual(no_members.count(), 0)
 
     def test_club_staff_filtering_all_objects_manager_bypass(self):
         """Test that all_objects manager bypasses user filtering"""
-        from clubs.models import set_current_user
         from accounts.managers import set_current_tenant
+        from clubs.models import set_current_user
 
         # Set tenant context and restricted user context
         set_current_tenant(self.tenant1)
@@ -632,8 +589,8 @@ class ClubStaffFilteringTestCase(TestCase):
 
     def tearDown(self):
         """Clean up context after each test"""
-        from clubs.models import set_current_user
         from accounts.managers import set_current_tenant
+        from clubs.models import set_current_user
 
         set_current_tenant(None)
         set_current_user(None)
@@ -646,7 +603,7 @@ class ClubStaffOrganizationUserTestCase(TestCase):
             tenant_name="Test Tenant",
             tenant_slug="test-tenant",
             billing_email="billing@test.com",
-            subscription_start_date=timezone.now().date()
+            subscription_start_date=timezone.now().date(),
         )
 
         # Create contacts
@@ -657,7 +614,7 @@ class ClubStaffOrganizationUserTestCase(TestCase):
             date_of_birth="1980-01-01",
             address="123 Test St",
             mobile_number="123-456-7890",
-            tenant=self.tenant
+            tenant=self.tenant,
         )
 
         self.contact2 = Contact.objects.create(
@@ -667,52 +624,56 @@ class ClubStaffOrganizationUserTestCase(TestCase):
             date_of_birth="1981-01-01",
             address="456 Test Ave",
             mobile_number="987-654-3210",
-            tenant=self.tenant
+            tenant=self.tenant,
         )
 
         # Create club
         self.club = Club.objects.create(
-            name="Test Club",
-            slug="test-club",
-            tenant=self.tenant
+            name="Test Club", slug="test-club", tenant=self.tenant
         )
 
-        # Create Django users and LoginUsers
+        # Create Django users and UserProfiles
         self.django_user1 = User.objects.create_user("owner", "owner@test.com")
-        self.login_user1 = LoginUser.objects.create(
+        self.user_profile1 = UserProfile.objects.create(
             user=self.django_user1,
             contact=self.contact1,
-            permissions_level="owner"
+        )
+        self.user_profile1.can_create_clubs = True
+        self.user_profile1.can_manage_members = True
+        self.user_profile1.save(
+            update_fields=["can_create_clubs", "can_manage_members"]
         )
 
         self.django_user2 = User.objects.create_user("admin", "admin@test.com")
-        self.login_user2 = LoginUser.objects.create(
+        self.user_profile2 = UserProfile.objects.create(
             user=self.django_user2,
             contact=self.contact2,
-            permissions_level="admin"
+        )
+        self.user_profile2.is_system_admin = True
+        self.user_profile2.can_create_clubs = True
+        self.user_profile2.can_manage_members = True
+        self.user_profile2.save(
+            update_fields=["is_system_admin", "can_create_clubs", "can_manage_members"]
         )
 
         # Create OrganizationUsers for the club (since Club inherits from Organization)
         from organizations.models import OrganizationUser
+
         self.org_user1 = OrganizationUser.objects.create(
-            user=self.django_user1,
-            organization=self.club,
-            is_admin=False
+            user=self.django_user1, organization=self.club, is_admin=False
         )
 
         self.org_user2 = OrganizationUser.objects.create(
-            user=self.django_user2,
-            organization=self.club,
-            is_admin=True
+            user=self.django_user2, organization=self.club, is_admin=True
         )
 
     def test_club_staff_creation_with_organization_user(self):
         """Test creating ClubStaff with valid OrganizationUser"""
         staff = ClubStaff.objects.create(
             club=self.club,
-            user=self.login_user1,
+            user=self.user_profile1,
             organization_user=self.org_user1,
-            role='instructor'
+            role="instructor",
         )
 
         self.assertEqual(staff.organization_user, self.org_user1)
@@ -722,14 +683,12 @@ class ClubStaffOrganizationUserTestCase(TestCase):
     def test_club_staff_creation_without_organization_user(self):
         """Test creating ClubStaff without OrganizationUser (should be allowed)"""
         staff = ClubStaff.objects.create(
-            club=self.club,
-            user=self.login_user1,
-            role='instructor'
+            club=self.club, user=self.user_profile1, role="instructor"
         )
 
         self.assertIsNone(staff.organization_user)
         self.assertEqual(staff.club, self.club)
-        self.assertEqual(staff.user, self.login_user1)
+        self.assertEqual(staff.user, self.user_profile1)
 
     def test_organization_user_validation_mismatched_django_user(self):
         """Test validation fails when Django Users don't match"""
@@ -738,22 +697,22 @@ class ClubStaffOrganizationUserTestCase(TestCase):
         # Create another user for mismatch
         other_django_user = User.objects.create_user("other", "other@test.com")
         other_org_user = OrganizationUser.objects.create(
-            user=other_django_user,
-            organization=self.club,
-            is_admin=False
+            user=other_django_user, organization=self.club, is_admin=False
         )
 
         staff = ClubStaff(
             club=self.club,
-            user=self.login_user1,  # Uses django_user1
+            user=self.user_profile1,  # Uses django_user1
             organization_user=other_org_user,  # Uses other_django_user
-            role='instructor'
+            role="instructor",
         )
 
         with self.assertRaises(ValidationError) as cm:
             staff.full_clean()
 
-        self.assertIn("OrganizationUser must belong to the same Django User", str(cm.exception))
+        self.assertIn(
+            "OrganizationUser must belong to the same Django User", str(cm.exception)
+        )
 
     def test_organization_user_validation_mismatched_organization(self):
         """Test validation fails when Organizations don't match"""
@@ -761,28 +720,28 @@ class ClubStaffOrganizationUserTestCase(TestCase):
 
         # Create another club/organization
         other_club = Club.objects.create(
-            name="Other Club",
-            slug="other-club",
-            tenant=self.tenant
+            name="Other Club", slug="other-club", tenant=self.tenant
         )
 
         other_org_user = OrganizationUser.objects.create(
             user=self.django_user1,
             organization=other_club,  # Different organization
-            is_admin=False
+            is_admin=False,
         )
 
         staff = ClubStaff(
             club=self.club,  # Using self.club
-            user=self.login_user1,
+            user=self.user_profile1,
             organization_user=other_org_user,  # Links to other_club
-            role='instructor'
+            role="instructor",
         )
 
         with self.assertRaises(ValidationError) as cm:
             staff.full_clean()
 
-        self.assertIn("OrganizationUser must belong to the same Organization", str(cm.exception))
+        self.assertIn(
+            "OrganizationUser must belong to the same Organization", str(cm.exception)
+        )
 
     def test_organization_admin_detection(self):
         """Test is_organization_admin method"""
@@ -795,35 +754,32 @@ class ClubStaffOrganizationUserTestCase(TestCase):
             date_of_birth="1983-01-01",
             address="600 NoOrg St",
             mobile_number="600-600-6000",
-            tenant=self.tenant
+            tenant=self.tenant,
         )
-        no_org_login = LoginUser.objects.create(
+        no_org_login = UserProfile.objects.create(
             user=no_org_user,
             contact=no_org_contact,
-            permissions_level="staff"
         )
 
         # Staff with organization admin
         staff_admin = ClubStaff.objects.create(
             club=self.club,
-            user=self.login_user2,
+            user=self.user_profile2,
             organization_user=self.org_user2,  # is_admin=True
-            role='instructor'
+            role="instructor",
         )
 
         # Staff with regular organization member
         staff_member = ClubStaff.objects.create(
             club=self.club,
-            user=self.login_user1,
+            user=self.user_profile1,
             organization_user=self.org_user1,  # is_admin=False
-            role='instructor'
+            role="instructor",
         )
 
         # Staff without organization user
         staff_no_org = ClubStaff.objects.create(
-            club=self.club,
-            user=no_org_login,
-            role='assistant'
+            club=self.club, user=no_org_login, role="assistant"
         )
 
         self.assertTrue(staff_admin.is_organization_admin())
@@ -834,7 +790,9 @@ class ClubStaffOrganizationUserTestCase(TestCase):
         """Test permission hierarchy level calculation"""
         # Create additional users for different roles to avoid unique constraint violations
         # Create superuser
-        superuser = User.objects.create_user("super", "super@test.com", is_superuser=True)
+        superuser = User.objects.create_user(
+            "super", "super@test.com", is_superuser=True
+        )
         super_contact = Contact.objects.create(
             first_name="Super",
             last_name="User",
@@ -842,12 +800,17 @@ class ClubStaffOrganizationUserTestCase(TestCase):
             date_of_birth="1975-01-01",
             address="789 Super St",
             mobile_number="555-123-4567",
-            tenant=self.tenant
+            tenant=self.tenant,
         )
-        super_login = LoginUser.objects.create(
+        super_login = UserProfile.objects.create(
             user=superuser,
             contact=super_contact,
-            permissions_level="admin"
+        )
+        super_login.is_system_admin = True
+        super_login.can_create_clubs = True
+        super_login.can_manage_members = True
+        super_login.save(
+            update_fields=["is_system_admin", "can_create_clubs", "can_manage_members"]
         )
 
         # Create additional users for different roles
@@ -859,13 +822,15 @@ class ClubStaffOrganizationUserTestCase(TestCase):
             date_of_birth="1976-01-01",
             address="111 Owner St",
             mobile_number="111-111-1111",
-            tenant=self.tenant
+            tenant=self.tenant,
         )
-        owner_login = LoginUser.objects.create(
+        owner_login = UserProfile.objects.create(
             user=owner_user,
             contact=owner_contact,
-            permissions_level="owner"
         )
+        owner_login.can_create_clubs = True
+        owner_login.can_manage_members = True
+        owner_login.save(update_fields=["can_create_clubs", "can_manage_members"])
 
         admin_user = User.objects.create_user("admin_test", "admin_test@test.com")
         admin_contact = Contact.objects.create(
@@ -875,15 +840,22 @@ class ClubStaffOrganizationUserTestCase(TestCase):
             date_of_birth="1977-01-01",
             address="222 Admin St",
             mobile_number="222-222-2222",
-            tenant=self.tenant
+            tenant=self.tenant,
         )
-        admin_login = LoginUser.objects.create(
+        admin_login = UserProfile.objects.create(
             user=admin_user,
             contact=admin_contact,
-            permissions_level="admin"
+        )
+        admin_login.is_system_admin = True
+        admin_login.can_create_clubs = True
+        admin_login.can_manage_members = True
+        admin_login.save(
+            update_fields=["is_system_admin", "can_create_clubs", "can_manage_members"]
         )
 
-        instructor_user = User.objects.create_user("instructor_test", "instructor_test@test.com")
+        instructor_user = User.objects.create_user(
+            "instructor_test", "instructor_test@test.com"
+        )
         instructor_contact = Contact.objects.create(
             first_name="Instructor",
             last_name="Test",
@@ -891,15 +863,16 @@ class ClubStaffOrganizationUserTestCase(TestCase):
             date_of_birth="1978-01-01",
             address="333 Instructor St",
             mobile_number="333-333-3333",
-            tenant=self.tenant
+            tenant=self.tenant,
         )
-        instructor_login = LoginUser.objects.create(
+        instructor_login = UserProfile.objects.create(
             user=instructor_user,
             contact=instructor_contact,
-            permissions_level="staff"
         )
 
-        assistant_user = User.objects.create_user("assistant_test", "assistant_test@test.com")
+        assistant_user = User.objects.create_user(
+            "assistant_test", "assistant_test@test.com"
+        )
         assistant_contact = Contact.objects.create(
             first_name="Assistant",
             last_name="Test",
@@ -907,50 +880,39 @@ class ClubStaffOrganizationUserTestCase(TestCase):
             date_of_birth="1979-01-01",
             address="444 Assistant St",
             mobile_number="444-444-4444",
-            tenant=self.tenant
+            tenant=self.tenant,
         )
-        assistant_login = LoginUser.objects.create(
+        assistant_login = UserProfile.objects.create(
             user=assistant_user,
             contact=assistant_contact,
-            permissions_level="staff"
         )
 
         # Test different hierarchy levels
         staff_super = ClubStaff.objects.create(
-            club=self.club,
-            user=super_login,
-            role='instructor'
+            club=self.club, user=super_login, role="instructor"
         )
 
         staff_org_admin = ClubStaff.objects.create(
             club=self.club,
-            user=self.login_user2,
+            user=self.user_profile2,
             organization_user=self.org_user2,  # is_admin=True
-            role='instructor'
+            role="instructor",
         )
 
         staff_club_owner = ClubStaff.objects.create(
-            club=self.club,
-            user=owner_login,
-            role='owner'
+            club=self.club, user=owner_login, role="owner"
         )
 
         staff_club_admin = ClubStaff.objects.create(
-            club=self.club,
-            user=admin_login,
-            role='admin'
+            club=self.club, user=admin_login, role="admin"
         )
 
         staff_instructor = ClubStaff.objects.create(
-            club=self.club,
-            user=instructor_login,
-            role='instructor'
+            club=self.club, user=instructor_login, role="instructor"
         )
 
         staff_assistant = ClubStaff.objects.create(
-            club=self.club,
-            user=assistant_login,
-            role='assistant'
+            club=self.club, user=assistant_login, role="assistant"
         )
 
         self.assertEqual(staff_super.get_permission_hierarchy_level(), 100)
@@ -971,15 +933,19 @@ class ClubStaffOrganizationUserTestCase(TestCase):
             date_of_birth="1980-02-01",
             address="100 Owner St",
             mobile_number="100-100-1000",
-            tenant=self.tenant
+            tenant=self.tenant,
         )
-        owner_login = LoginUser.objects.create(
+        owner_login = UserProfile.objects.create(
             user=owner_user,
             contact=owner_contact,
-            permissions_level="owner"
         )
+        owner_login.can_create_clubs = True
+        owner_login.can_manage_members = True
+        owner_login.save(update_fields=["can_create_clubs", "can_manage_members"])
 
-        instructor_user = User.objects.create_user("instructor_manage", "instructor_manage@test.com")
+        instructor_user = User.objects.create_user(
+            "instructor_manage", "instructor_manage@test.com"
+        )
         instructor_contact = Contact.objects.create(
             first_name="Instructor",
             last_name="Manage",
@@ -987,15 +953,16 @@ class ClubStaffOrganizationUserTestCase(TestCase):
             date_of_birth="1981-02-01",
             address="200 Instructor St",
             mobile_number="200-200-2000",
-            tenant=self.tenant
+            tenant=self.tenant,
         )
-        instructor_login = LoginUser.objects.create(
+        instructor_login = UserProfile.objects.create(
             user=instructor_user,
             contact=instructor_contact,
-            permissions_level="staff"
         )
 
-        assistant_user = User.objects.create_user("assistant_manage", "assistant_manage@test.com")
+        assistant_user = User.objects.create_user(
+            "assistant_manage", "assistant_manage@test.com"
+        )
         assistant_contact = Contact.objects.create(
             first_name="Assistant",
             last_name="Manage",
@@ -1003,58 +970,59 @@ class ClubStaffOrganizationUserTestCase(TestCase):
             date_of_birth="1982-02-01",
             address="300 Assistant St",
             mobile_number="300-300-3000",
-            tenant=self.tenant
+            tenant=self.tenant,
         )
-        assistant_login = LoginUser.objects.create(
+        assistant_login = UserProfile.objects.create(
             user=assistant_user,
             contact=assistant_contact,
-            permissions_level="staff"
         )
 
         # Create staff with different levels
-        owner = ClubStaff.objects.create(
-            club=self.club,
-            user=owner_login,
-            role='owner'
-        )
+        owner = ClubStaff.objects.create(club=self.club, user=owner_login, role="owner")
 
         org_admin = ClubStaff.objects.create(
             club=self.club,
-            user=self.login_user2,
+            user=self.user_profile2,
             organization_user=self.org_user2,  # is_admin=True
-            role='instructor'
+            role="instructor",
         )
 
         instructor = ClubStaff.objects.create(
-            club=self.club,
-            user=instructor_login,
-            role='instructor'
+            club=self.club, user=instructor_login, role="instructor"
         )
 
         assistant = ClubStaff.objects.create(
-            club=self.club,
-            user=assistant_login,
-            role='assistant'
+            club=self.club, user=assistant_login, role="assistant"
         )
 
         # Test management permissions
-        self.assertTrue(org_admin.can_manage_staff_member(owner))  # Org admin can manage club owner
-        self.assertTrue(owner.can_manage_staff_member(instructor))  # Owner can manage instructor
-        self.assertTrue(instructor.can_manage_staff_member(assistant))  # Instructor can manage assistant
-        self.assertFalse(assistant.can_manage_staff_member(instructor))  # Assistant cannot manage instructor
-        self.assertFalse(instructor.can_manage_staff_member(owner))  # Instructor cannot manage owner
+        self.assertTrue(
+            org_admin.can_manage_staff_member(owner)
+        )  # Org admin can manage club owner
+        self.assertTrue(
+            owner.can_manage_staff_member(instructor)
+        )  # Owner can manage instructor
+        self.assertTrue(
+            instructor.can_manage_staff_member(assistant)
+        )  # Instructor can manage assistant
+        self.assertFalse(
+            assistant.can_manage_staff_member(instructor)
+        )  # Assistant cannot manage instructor
+        self.assertFalse(
+            instructor.can_manage_staff_member(owner)
+        )  # Instructor cannot manage owner
 
     def test_sync_with_organization_permissions(self):
         """Test syncing permissions with organization-level permissions"""
         # Organization admin gets elevated permissions
         staff_org_admin = ClubStaff.objects.create(
             club=self.club,
-            user=self.login_user2,
+            user=self.user_profile2,
             organization_user=self.org_user2,  # is_admin=True
-            role='instructor',
+            role="instructor",
             can_manage_members=False,
             can_manage_schedule=False,
-            can_view_finances=False
+            can_view_finances=False,
         )
 
         # Sync with organization permissions
@@ -1066,7 +1034,7 @@ class ClubStaffOrganizationUserTestCase(TestCase):
         self.assertFalse(staff_org_admin.can_view_finances)
 
         # Test with owner role
-        staff_org_admin.role = 'owner'
+        staff_org_admin.role = "owner"
         staff_org_admin.sync_with_organization()
         self.assertTrue(staff_org_admin.can_view_finances)
 
@@ -1075,18 +1043,18 @@ class ClubStaffOrganizationUserTestCase(TestCase):
         # Create first staff assignment with organization user
         staff1 = ClubStaff.objects.create(
             club=self.club,
-            user=self.login_user1,
+            user=self.user_profile1,
             organization_user=self.org_user1,
-            role='instructor'
+            role="instructor",
         )
 
         # Try to create second staff assignment with same organization user
         with self.assertRaises(Exception):  # Should raise IntegrityError
             ClubStaff.objects.create(
                 club=self.club,
-                user=self.login_user2,
+                user=self.user_profile2,
                 organization_user=self.org_user1,  # Same org user
-                role='assistant'
+                role="assistant",
             )
 
     def test_get_organization_user_method(self):
@@ -1100,25 +1068,22 @@ class ClubStaffOrganizationUserTestCase(TestCase):
             date_of_birth="1985-01-01",
             address="500 GetOrg St",
             mobile_number="500-500-5000",
-            tenant=self.tenant
+            tenant=self.tenant,
         )
-        test_login = LoginUser.objects.create(
+        test_login = UserProfile.objects.create(
             user=test_user,
             contact=test_contact,
-            permissions_level="staff"
         )
 
         staff_with_org = ClubStaff.objects.create(
             club=self.club,
-            user=self.login_user1,
+            user=self.user_profile1,
             organization_user=self.org_user1,
-            role='instructor'
+            role="instructor",
         )
 
         staff_without_org = ClubStaff.objects.create(
-            club=self.club,
-            user=test_login,
-            role='assistant'
+            club=self.club, user=test_login, role="assistant"
         )
 
         self.assertEqual(staff_with_org.get_organization_user(), self.org_user1)

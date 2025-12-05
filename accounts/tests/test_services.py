@@ -10,7 +10,7 @@ from decimal import Decimal
 from django.test import TestCase
 from django.contrib.auth.models import User
 
-from people.models import Contact, LoginUser
+from people.models import Contact, UserProfile
 from accounts.models import (
     TenantAccount,
     MemberAccount,
@@ -208,8 +208,8 @@ class ContactServicesTestCase(TestCase):
         self.assertFalse(summary["can_be_deleted"])
 
 
-class LoginUserServicesTestCase(TestCase):
-    """Test LoginUser-related service functions"""
+class UserProfileServicesTestCase(TestCase):
+    """Test UserProfile-related service functions"""
 
     def setUp(self):
         """Set up test data"""
@@ -227,10 +227,9 @@ class LoginUserServicesTestCase(TestCase):
             address="111 Test St, City, State",
             mobile_number="555-1001"
         )
-        self.login_user1 = LoginUser.objects.create(
+        self.user_profile1 = UserProfile.objects.create(
             user=self.user1,
             contact=self.contact1,
-            permissions_level="member"
         )
 
         # Create tenant and member account
@@ -258,25 +257,25 @@ class LoginUserServicesTestCase(TestCase):
             is_active=True
         )
 
-    def test_get_tenant_account_for_loginuser(self):
-        """Test get_tenant_account_for_loginuser service function"""
-        tenant = acct_svc.get_tenant_account_for_loginuser(self.login_user1)
+    def test_get_tenant_account_for_userprofile(self):
+        """Test get_tenant_account_for_userprofile service function"""
+        tenant = acct_svc.get_tenant_account_for_userprofile(self.user_profile1)
         self.assertEqual(tenant, self.tenant1)
 
-    def test_loginuser_can_access_account(self):
-        """Test loginuser_can_access_account service function"""
+    def test_userprofile_can_access_account(self):
+        """Test userprofile_can_access_account service function"""
         # User should be able to access their own member account
-        can_access = acct_svc.loginuser_can_access_account(self.login_user1, self.member1)
+        can_access = acct_svc.userprofile_can_access_account(self.user_profile1, self.member1)
         self.assertTrue(can_access)
 
-    def test_get_accessible_member_accounts_for_loginuser(self):
-        """Test get_accessible_member_accounts_for_loginuser service function"""
-        accessible = acct_svc.get_accessible_member_accounts_for_loginuser(self.login_user1)
+    def test_get_accessible_member_accounts_for_userprofile(self):
+        """Test get_accessible_member_accounts_for_userprofile service function"""
+        accessible = acct_svc.get_accessible_member_accounts_for_userprofile(self.user_profile1)
         self.assertEqual(accessible.count(), 1)
         self.assertIn(self.member1, accessible)
 
-    def test_get_accessible_payment_history_for_loginuser(self):
-        """Test get_accessible_payment_history_for_loginuser service function"""
+    def test_get_accessible_payment_history_for_userprofile(self):
+        """Test get_accessible_payment_history_for_userprofile service function"""
         # Create test payment
         from django.utils import timezone
         payment = PaymentHistory.objects.create(
@@ -288,44 +287,50 @@ class LoginUserServicesTestCase(TestCase):
             payment_date=timezone.now()
         )
 
-        payments = acct_svc.get_accessible_payment_history_for_loginuser(self.login_user1)
+        payments = acct_svc.get_accessible_payment_history_for_userprofile(self.user_profile1)
         self.assertEqual(len(payments), 1)
         self.assertIn(payment, payments)
 
-    def test_loginuser_can_create_member_accounts(self):
-        """Test loginuser_can_create_member_accounts service function"""
+    def test_userprofile_can_create_member_accounts(self):
+        """Test userprofile_can_create_member_accounts service function"""
         # Regular member should not be able to create accounts
-        can_create = acct_svc.loginuser_can_create_member_accounts(self.login_user1)
+        can_create = acct_svc.userprofile_can_create_member_accounts(self.user_profile1)
         self.assertFalse(can_create)
 
         # Admin should be able to create accounts
-        self.login_user1.permissions_level = "admin"
-        self.login_user1.save()
-        can_create = acct_svc.loginuser_can_create_member_accounts(self.login_user1)
+        self.user_profile1.is_system_admin = True
+        self.user_profile1.can_create_clubs = True
+        self.user_profile1.can_manage_members = True
+        self.user_profile1.save(update_fields=['is_system_admin','can_create_clubs','can_manage_members'])
+        can_create = acct_svc.userprofile_can_create_member_accounts(self.user_profile1)
         self.assertTrue(can_create)
 
-    def test_loginuser_can_manage_billing(self):
-        """Test loginuser_can_manage_billing service function"""
+    def test_userprofile_can_manage_billing(self):
+        """Test userprofile_can_manage_billing service function"""
         # Regular member should not manage billing
-        can_manage = acct_svc.loginuser_can_manage_billing(self.login_user1)
+        can_manage = acct_svc.userprofile_can_manage_billing(self.user_profile1)
         self.assertFalse(can_manage)
 
         # Admin should manage billing
-        self.login_user1.permissions_level = "admin"
-        self.login_user1.save()
-        can_manage = acct_svc.loginuser_can_manage_billing(self.login_user1)
+        self.user_profile1.is_system_admin = True
+        self.user_profile1.can_create_clubs = True
+        self.user_profile1.can_manage_members = True
+        self.user_profile1.save(update_fields=['is_system_admin','can_create_clubs','can_manage_members'])
+        can_manage = acct_svc.userprofile_can_manage_billing(self.user_profile1)
         self.assertTrue(can_manage)
 
-    def test_get_tenant_statistics_for_loginuser(self):
-        """Test get_tenant_statistics_for_loginuser service function"""
+    def test_get_tenant_statistics_for_userprofile(self):
+        """Test get_tenant_statistics_for_userprofile service function"""
         # Regular member should not see statistics
-        stats = acct_svc.get_tenant_statistics_for_loginuser(self.login_user1)
+        stats = acct_svc.get_tenant_statistics_for_userprofile(self.user_profile1)
         self.assertIsNone(stats)
 
         # Admin should see statistics
-        self.login_user1.permissions_level = "admin"
-        self.login_user1.save()
-        stats = acct_svc.get_tenant_statistics_for_loginuser(self.login_user1)
+        self.user_profile1.is_system_admin = True
+        self.user_profile1.can_create_clubs = True
+        self.user_profile1.can_manage_members = True
+        self.user_profile1.save(update_fields=['is_system_admin','can_create_clubs','can_manage_members'])
+        stats = acct_svc.get_tenant_statistics_for_userprofile(self.user_profile1)
         self.assertIsInstance(stats, dict)
         self.assertIn("member_count", stats)
         self.assertIn("total_revenue", stats)
